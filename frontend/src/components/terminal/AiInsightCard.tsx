@@ -50,7 +50,7 @@ export function AiInsightCard({ title, description, fetcher }: Props) {
   }, [fetcher]);
 
   const engineLive = data?.engine === "lmstudio";
-  const engineLabel = engineLive ? `Gemma · ${data?.model}` : "LM Studio offline";
+  const engineLabel = engineLive ? `Gemma · ${data?.model}` : "Gemma offline — lexical fallback";
 
   return (
     <section className="rounded border border-terminal-border bg-terminal-panel p-3">

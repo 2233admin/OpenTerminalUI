@@ -6,6 +6,7 @@ import {
   addHolding,
   addMutualFundHolding,
   deleteHolding,
+  extractApiErrorMessage,
   fetchChart,
   fetchPortfolio,
   fetchPortfolioBenchmarkOverlay,
@@ -18,6 +19,7 @@ import {
   searchSymbols,
   type SearchSymbolItem,
 } from "../api/client";
+import { fetchAiRiskInsights, fetchCollectionBriefing } from "../api/client";
 import { CountryFlag } from "../components/common/CountryFlag";
 import { InstrumentBadges } from "../components/common/InstrumentBadges";
 import { AllocationChart } from "../components/portfolio/AllocationChart";
@@ -34,6 +36,8 @@ import { EarningsDateBadge } from "../components/EarningsDateBadge";
 import { MutualFundPortfolioSection } from "../components/mutualFunds/MutualFundPortfolioSection";
 import { PortfolioEventsCalendar } from "../components/PortfolioEventsCalendar";
 import { TerminalButton } from "../components/terminal/TerminalButton";
+import { AiInsightCard } from "../components/terminal/AiInsightCard";
+import { SavedViewsControl } from "../components/savedViews/SavedViewsControl";
 import { ExportButton } from "../components/common/ExportButton";
 import { TerminalInput } from "../components/terminal/TerminalInput";
 import { usePortfolioEarnings } from "../hooks/useStocks";
@@ -50,6 +54,7 @@ import type {
 } from "../types";
 import { MOMENTUM_ROTATION_BASKET } from "../utils/constants";
 import { formatInr } from "../utils/formatters";
+import { consumePendingSavedView } from "../workspace/savedViewRestore";
 
 const AttributionPanel = lazy(() => import("../components/portfolio/AttributionPanel"));
 
@@ -223,6 +228,8 @@ export function PortfolioPage() {
   const [quantity, setQuantity] = useState(10);
   const [avgBuyPrice, setAvgBuyPrice] = useState(2500);
   const [buyDate, setBuyDate] = useState("2025-01-01");
+  const [submitting, setSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [riskMetrics, setRiskMetrics] = useState<PortfolioRiskMetrics | null>(null);
@@ -233,6 +240,17 @@ export function PortfolioPage() {
   const [tickerSuggestions, setTickerSuggestions] = useState<SearchSymbolItem[]>([]);
   const [isTickerSuggestionsOpen, setIsTickerSuggestionsOpen] = useState(false);
   const [holdingContextMenu, setHoldingContextMenu] = useState<{ row: PortfolioHoldingRow; x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    const payload = consumePendingSavedView(window.location.pathname);
+    if (!payload) return;
+    const filters = payload.filters ?? {};
+    if (filters.portfolioMode === "equity" || filters.portfolioMode === "mutual_funds") setPortfolioMode(filters.portfolioMode);
+    if (filters.portfolioView === "legacy" || filters.portfolioView === "manager") setPortfolioView(filters.portfolioView);
+    if (filters.portfolioSection === "overview" || filters.portfolioSection === "attribution") setPortfolioSection(filters.portfolioSection);
+    if (filters.trendRange === "1Y" || filters.trendRange === "3Y" || filters.trendRange === "5Y" || filters.trendRange === "ALL") setTrendRange(filters.trendRange);
+    if (typeof payload.selectedTicker === "string") setTicker(payload.selectedTicker);
+  }, []);
   const selectedMarket = useSettingsStore((s) => s.selectedMarket);
   const searchRequestRef = useRef(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -674,6 +692,15 @@ export function PortfolioPage() {
           <TerminalButton variant="default" onClick={() => switchPortfolioView("legacy")}>
             Legacy View
           </TerminalButton>
+          <SavedViewsControl
+            pageLabel="Portfolio"
+            capture={() => ({
+              filters: { portfolioMode, portfolioView, portfolioSection, trendRange },
+              activeTabs: { portfolioView, portfolioSection },
+              selectedTicker: ticker,
+              tableColumns: "portfolio-manager-default",
+            })}
+          />
         </div>
         <PortfolioManager />
       </div>
@@ -688,6 +715,15 @@ export function PortfolioPage() {
           <span className="rounded border border-terminal-border bg-terminal-bg px-2 py-0.5 text-[11px] text-terminal-muted">
             Mode: Equity
           </span>
+          <SavedViewsControl
+            pageLabel="Portfolio"
+            capture={() => ({
+              filters: { portfolioMode, portfolioView, portfolioSection, trendRange },
+              activeTabs: { portfolioView, portfolioSection },
+              selectedTicker: ticker,
+              tableColumns: "portfolio-overview-default",
+            })}
+          />
         </div>
         <div className="flex flex-wrap gap-1">
           <button className="rounded border border-terminal-accent px-2 py-1 text-xs text-terminal-accent">
@@ -792,30 +828,80 @@ export function PortfolioPage() {
           </div>
           <div>
             <label className="mb-1 block text-[11px] uppercase tracking-wide text-terminal-muted">Qty</label>
-            <TerminalInput className="w-full text-xs" type="number" value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} />
+            <TerminalInput
+              className={`w-full text-xs ${fieldErrors.quantity ? "border-terminal-neg" : ""}`}
+              type="number"
+              value={quantity}
+              onChange={(e) => {
+                setQuantity(Number(e.target.value));
+                setFieldErrors(prev => ({ ...prev, quantity: "" }));
+              }}
+            />
           </div>
           <div>
             <label className="mb-1 block text-[11px] uppercase tracking-wide text-terminal-muted">Avg Buy</label>
-            <TerminalInput className="w-full text-xs" type="number" value={avgBuyPrice} onChange={(e) => setAvgBuyPrice(Number(e.target.value))} />
+            <TerminalInput
+              className={`w-full text-xs ${fieldErrors.avgBuyPrice ? "border-terminal-neg" : ""}`}
+              type="number"
+              value={avgBuyPrice}
+              onChange={(e) => {
+                setAvgBuyPrice(Number(e.target.value));
+                setFieldErrors(prev => ({ ...prev, avgBuyPrice: "" }));
+              }}
+            />
           </div>
           <div>
             <label className="mb-1 block text-[11px] uppercase tracking-wide text-terminal-muted">Buy Date</label>
-            <TerminalInput className="w-full text-xs" type="date" value={buyDate} onChange={(e) => setBuyDate(e.target.value)} />
+            <TerminalInput
+              className={`w-full text-xs ${fieldErrors.buyDate ? "border-terminal-neg" : ""}`}
+              type="date"
+              value={buyDate}
+              onChange={(e) => {
+                setBuyDate(e.target.value);
+                setFieldErrors(prev => ({ ...prev, buyDate: "" }));
+              }}
+            />
           </div>
           <div className="flex items-end">
             <TerminalButton
               variant="accent"
               className="w-full justify-center"
+              disabled={submitting}
               onClick={async () => {
+                const errors: Record<string, string> = {};
+                if (!ticker || !ticker.trim()) errors.ticker = "Ticker is required";
+                if (quantity <= 0) errors.quantity = "Qty > 0 required";
+                if (avgBuyPrice <= 0) errors.avgBuyPrice = "Price > 0 required";
+                if (!buyDate) errors.buyDate = "Date required";
+
+                if (Object.keys(errors).length > 0) {
+                  setFieldErrors(errors);
+                  return;
+                }
+
+                setFieldErrors({});
+                setSubmitting(true);
+                setError(null);
                 try {
-                  await addHolding({ ticker, quantity, avg_buy_price: avgBuyPrice, buy_date: buyDate });
+                  await addHolding({ ticker: ticker.trim().toUpperCase(), quantity, avg_buy_price: avgBuyPrice, buy_date: buyDate });
                   await load();
-                } catch (e) {
-                  setError(e instanceof Error ? e.message : "Failed to add holding");
+                  // Reset form on success
+                  setTicker("");
+                  setQuantity(1);
+                  setAvgBuyPrice(0);
+                } catch (e: any) {
+                  const status = e.response?.status;
+                  if (status === 401 || status === 403) {
+                    setError("Session expired. Please sign in again.");
+                  } else {
+                    setError(extractApiErrorMessage(e, "Failed to add holding"));
+                  }
+                } finally {
+                  setSubmitting(false);
                 }
               }}
             >
-              Add Holding
+              {submitting ? "Adding..." : "Add Holding"}
             </TerminalButton>
           </div>
         </div>
@@ -911,7 +997,14 @@ export function PortfolioPage() {
           </div>
 
           <div className="grid gap-3 xl:grid-cols-2">
-            <RiskMetricsPanel metrics={riskMetrics} />
+            <div className="space-y-3">
+              <RiskMetricsPanel metrics={riskMetrics} />
+              <AiInsightCard
+                title="AI Risk Assessment"
+                description="Narrative interpretation of portfolio risk, concentration, and tail-risk posture"
+                fetcher={() => fetchAiRiskInsights(riskMetrics || {}, "portfolio")}
+              />
+            </div>
             <CorrelationHeatmap data={correlation} />
             <DividendTracker data={dividends} />
             <BenchmarkOverlayChart data={benchmarkOverlay} />

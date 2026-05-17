@@ -49,12 +49,15 @@ const EconomicTerminal = lazyWithRetry(() => import("./pages/economics/EconomicT
 const SectorRotationPage = lazyWithRetry(() => import("./pages/SectorRotation").then((m) => ({ default: m.SectorRotationPage })));
 const CryptoWorkspacePage = lazyWithRetry(() => import("./pages/CryptoWorkspace").then((m) => ({ default: m.CryptoWorkspacePage })));
 const BondsPage = lazyWithRetry(() => import("./pages/equity/bonds/Bonds").then((m) => ({ default: m.BondsPage })));
+const FactorDashboardPage = lazyWithRetry(() => import("./pages/FactorDashboard").then((m) => ({ default: m.FactorDashboardPage })));
+const IntelligenceTimelinePage = lazyWithRetry(() => import("./pages/IntelligenceTimelinePage").then((m) => ({ default: m.IntelligenceTimelinePage })));
 const ETFAnalyticsPage = lazyWithRetry(() => import("./pages/ETFAnalytics").then((m) => ({ default: m.ETFAnalyticsPage })));
 const MutualFundsPage = lazyWithRetry(() => import("./pages/MutualFunds").then((m) => ({ default: m.MutualFundsPage })));
 const MarketHeatmapPage = lazyWithRetry(() => import("./pages/MarketHeatmapPage").then((m) => ({ default: m.MarketHeatmapPage })));
 const DividendDashboardPage = lazyWithRetry(() => import("./pages/DividendDashboardPage").then((m) => ({ default: m.DividendDashboardPage })));
 const TimeAndSalesPage = lazyWithRetry(() => import("./pages/TimeAndSalesPage").then((m) => ({ default: m.TimeAndSalesPage })));
 const DOMPage = lazyWithRetry(() => import("./pages/DOMPage").then((m) => ({ default: m.DOMPage })));
+const SavedViewsPage = lazyWithRetry(() => import("./pages/SavedViewsPage").then((m) => ({ default: m.SavedViewsPage })));
 
 const OptionChainPage = lazyWithRetry(() => import("./fno/pages/OptionChainPage").then((m) => ({ default: m.OptionChainPage })));
 const GreeksPage = lazyWithRetry(() => import("./fno/pages/GreeksPage").then((m) => ({ default: m.GreeksPage })));
@@ -125,6 +128,8 @@ function App() {
             <Route path="rs" element={<RelativeStrengthPage />} />
             <Route path="data-quality" element={<DataQualityDashboard />} />
             <Route path="screener" element={<ScreenerPage />} />
+            <Route path="factors" element={<FactorDashboardPage />} />
+            <Route path="intelligence-timeline" element={<IntelligenceTimelinePage />} />
             <Route path="portfolio" element={<PortfolioPage />} />
             <Route path="portfolio/lab" element={<PortfolioLabPage />} />
             <Route path="portfolio/lab/portfolios/:id" element={<PortfolioLabDetailPage />} />
@@ -157,6 +162,7 @@ function App() {
             <Route path="crypto" element={<CryptoWorkspacePage />} />
             <Route path="etf-analytics" element={<ETFAnalyticsPage />} />
             <Route path="cockpit" element={<CockpitDashboard />} />
+            <Route path="saved-views" element={<SavedViewsPage />} />
           </Route>
 
           <Route path="/fno" element={<ProtectedRoute><FnoLayout /></ProtectedRoute>}>
@@ -216,6 +222,7 @@ function App() {
           <Route path="/ops" element={<Navigate to="/equity/ops" replace />} />
           <Route path="/settings" element={<Navigate to="/equity/settings" replace />} />
           <Route path="/plugins" element={<Navigate to="/equity/plugins" replace />} />
+          <Route path="/saved-views" element={<Navigate to="/equity/saved-views" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>

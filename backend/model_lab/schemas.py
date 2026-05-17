@@ -54,3 +54,10 @@ class WalkForwardRequest(BaseModel):
 class ParamSweepRequest(BaseModel):
     grid: dict[str, list[float | int | str | bool]] = Field(default_factory=dict)
     max_combinations: int = Field(32, ge=1, le=96)
+
+
+class MonteCarloRequest(BaseModel):
+    paths: int = Field(1000, ge=1, le=10000)
+    method: str = "bootstrap"
+    block_size: int = Field(20, ge=1, le=252)
+    seed: int | None = None

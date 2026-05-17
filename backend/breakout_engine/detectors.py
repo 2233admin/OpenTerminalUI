@@ -105,6 +105,7 @@ def _detect_range_pattern(
     lookback: int,
     min_volume_ratio: float,
     require_volume_spike: bool,
+    fno_signals: dict[str, Any] | None = None,
 ) -> PatternSignal:
     if lookback < 3:
         return _base_metadata(pattern, "lookback_too_small", lookback, len(candles))
@@ -147,6 +148,13 @@ def _detect_range_pattern(
     if volume_ratio < min_ratio:
         raw_conf *= max(0.0, volume_ratio / min_ratio)
 
+    fno = fno_signals if isinstance(fno_signals, dict) else {}
+    if fno.get("available"):
+        bias = _to_float(fno.get("directional_bias"), 0.0)
+        if direction == "down":
+            bias *= -1.0
+        raw_conf = _clamp01(raw_conf + (bias * 0.12))
+
     confidence = _clamp01(raw_conf)
     triggered = bool(crossed and volume_ratio >= min_ratio and confidence >= 0.15)
 
@@ -168,6 +176,7 @@ def _detect_range_pattern(
             "range_span": float(range_span),
             "atr": float(atr),
             "volume_spike_required": require_volume_spike,
+            "fno_signals": fno if fno.get("available") else None,
         },
     )
 
@@ -178,6 +187,7 @@ def detect_pattern(
     *,
     lookback: int = 20,
     min_volume_ratio: float = 1.2,
+    fno_signals: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     normalized = _normalize_candles(candles)
     normalized_pattern = str(pattern or "").strip().lower()
@@ -202,6 +212,7 @@ def detect_pattern(
             lookback=max(lookback, 10),
             min_volume_ratio=max(min_volume_ratio, 1.6),
             require_volume_spike=True,
+            fno_signals=fno_signals,
         )
     else:
         sig = _detect_range_pattern(
@@ -210,6 +221,7 @@ def detect_pattern(
             lookback=lookback,
             min_volume_ratio=min_volume_ratio,
             require_volume_spike=False,
+            fno_signals=fno_signals,
         )
     return sig.to_dict()
 
@@ -220,6 +232,7 @@ def scan_patterns(
     *,
     lookback: int = 20,
     min_volume_ratio: float = 1.2,
+    fno_signals: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for pattern in patterns:
@@ -229,6 +242,7 @@ def scan_patterns(
                 pattern,
                 lookback=lookback,
                 min_volume_ratio=min_volume_ratio,
+                fno_signals=fno_signals,
             )
         )
     return out

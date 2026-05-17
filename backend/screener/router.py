@@ -38,6 +38,7 @@ class ScreenerRunRequest(BaseModel):
     query: str | None = None
     preset_id: str | None = None
     universe: str = "nse_500"
+    market: str = "IN"
     sort_by: str | None = None
     sort_order: str = "desc"
     limit: int = Field(default=100, ge=1, le=1000)
@@ -104,6 +105,7 @@ def _run_screen_impl(payload: ScreenerRunRequest) -> dict[str, Any]:
             RunConfig(
                 query=query,
                 universe=payload.universe,
+                market=payload.market.upper(),
                 sort_by=sort_by,
                 sort_order=sort_order,
                 limit=payload.limit,
@@ -128,8 +130,9 @@ def _run_screen_impl(payload: ScreenerRunRequest) -> dict[str, Any]:
     return result
 
 
-async def _hydrate_missing_universe_rows(universe: str, refresh_cap: int = 60) -> int:
-    symbols = _load_universe_symbols(universe)
+async def _hydrate_missing_universe_rows(universe: str, market: str = "IN", refresh_cap: int = 60) -> int:
+    market = market.upper()
+    symbols = _load_universe_symbols(universe, market=market)
     if not symbols:
         return 0
     existing = load_screener_df(symbols)
@@ -168,6 +171,9 @@ async def _hydrate_missing_universe_rows(universe: str, refresh_cap: int = 60) -
                 "rev_growth_pct": None,
                 "eps_growth_pct": None,
                 "beta": snap.get("beta"),
+                "market": market,
+                "exchange": snap.get("exchange"),
+                "country_code": snap.get("country_code"),
                 "piotroski_f_score": None,
                 "altman_z_score": None,
             }
@@ -181,7 +187,7 @@ async def _hydrate_missing_universe_rows(universe: str, refresh_cap: int = 60) -
 
 @router.post("/run")
 async def run_screen(payload: ScreenerRunRequest) -> dict[str, Any]:
-    await _hydrate_missing_universe_rows(payload.universe)
+    await _hydrate_missing_universe_rows(payload.universe, payload.market)
     return _run_screen_impl(payload)
 
 
@@ -190,6 +196,7 @@ async def run_screen_get(
     query: str | None = Query(default=None),
     preset_id: str | None = Query(default=None),
     universe: str = Query(default="nse_500"),
+    market: str = Query(default="IN"),
     sort_by: str | None = Query(default=None),
     sort_order: str = Query(default="desc"),
     limit: int = Query(default=100, ge=1, le=1000),
@@ -199,13 +206,14 @@ async def run_screen_get(
         query=query,
         preset_id=preset_id,
         universe=universe,
+        market=market,
         sort_by=sort_by,
         sort_order=sort_order,
         limit=limit,
         offset=offset,
         include_sparklines=True,
     )
-    await _hydrate_missing_universe_rows(payload.universe)
+    await _hydrate_missing_universe_rows(payload.universe, payload.market)
     return _run_screen_impl(
         payload
     )
@@ -213,7 +221,7 @@ async def run_screen_get(
 
 @router.post("/run-revamped")
 async def run_screen_revamped(payload: ScreenerRunRequest) -> dict[str, Any]:
-    await _hydrate_missing_universe_rows(payload.universe)
+    await _hydrate_missing_universe_rows(payload.universe, payload.market)
     return _run_screen_impl(payload)
 
 
@@ -222,6 +230,7 @@ async def run_screen_revamped_get(
     query: str | None = Query(default=None),
     preset_id: str | None = Query(default=None),
     universe: str = Query(default="nse_500"),
+    market: str = Query(default="IN"),
     sort_by: str | None = Query(default=None),
     sort_order: str = Query(default="desc"),
     limit: int = Query(default=100, ge=1, le=1000),
@@ -231,13 +240,14 @@ async def run_screen_revamped_get(
         query=query,
         preset_id=preset_id,
         universe=universe,
+        market=market,
         sort_by=sort_by,
         sort_order=sort_order,
         limit=limit,
         offset=offset,
         include_sparklines=True,
     )
-    await _hydrate_missing_universe_rows(payload.universe)
+    await _hydrate_missing_universe_rows(payload.universe, payload.market)
     return _run_screen_impl(
         payload
     )
@@ -345,7 +355,7 @@ def get_viz(screen_id: str) -> dict[str, Any]:
     preset = get_preset(screen_id)
     if preset is None:
         raise HTTPException(status_code=404, detail="Preset not found")
-    result = _engine.run(RunConfig(query=str(preset["query"]), universe="nse_500", limit=200))
+    result = _engine.run(RunConfig(query=str(preset["query"]), universe="nse_500", market="IN", limit=200))
     return {"screen_id": screen_id, "viz_config": preset.get("viz_config", {}), "viz_data": result.get("viz_data", {})}
 
 @router.post("/viz/{screen_id}")
@@ -376,6 +386,9 @@ def get_universes() -> dict[str, list[dict[str, str]]]:
             {"id": "nse_500", "name": "NSE 500"},
             {"id": "all_nse", "name": "All NSE"},
             {"id": "bse_500", "name": "BSE 500"},
+            {"id": "sp_500", "name": "S&P 500"},
+            {"id": "nasdaq_100", "name": "Nasdaq 100"},
+            {"id": "us_all", "name": "US All"},
         ]
     }
 

@@ -248,7 +248,7 @@ export function LaunchpadSectorRotationPanel({ panel }: PanelProps) {
 export function LaunchpadYieldCurvePanel(_: PanelProps) {
   const { data, isLoading } = useQuery({
     queryKey: ["launchpad", "yield-curve"],
-    queryFn: fetchYieldCurve,
+    queryFn: () => fetchYieldCurve(),
     staleTime: 300_000
   });
 

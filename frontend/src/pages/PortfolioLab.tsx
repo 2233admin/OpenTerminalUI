@@ -2,8 +2,24 @@ import { FormEvent, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { createPortfolioDefinition, listPortfolioDefinitions, type RebalanceFrequency, type WeightingMethod } from "../api/portfolioLab";
+import { createPortfolioDefinition, listPortfolioDefinitions, type RebalanceFrequency, type WeightingMethod } from "../api/client";
+import { api } from "../api/base";
 import { TerminalPanel } from "../components/terminal/TerminalPanel";
+
+type LeaderboardSortKey = "sharpe" | "cagr" | "max_drawdown" | "turnover" | "stability" | "recency" | "governance";
+type PortfolioLeaderboardRow = {
+  run_id?: string;
+  portfolio_id?: string;
+  name?: string;
+  market?: string;
+  sharpe?: number;
+  cagr?: number;
+  max_drawdown?: number;
+  turnover?: number;
+  stability?: number;
+  recency?: number;
+  governance?: number;
+};
 
 function normalizeIsoDate(input: string): string {
   const value = input.trim();
@@ -19,6 +35,8 @@ function normalizeIsoDate(input: string): string {
 
 export function PortfolioLabPage() {
   const queryClient = useQueryClient();
+  const [leaderboardMarket, setLeaderboardMarket] = useState<"US" | "India">("India");
+  const [leaderboardSort, setLeaderboardSort] = useState<LeaderboardSortKey>("sharpe");
   const [name, setName] = useState("Core Multi-Asset");
   const [description, setDescription] = useState("Portfolio lab baseline");
   const [tags, setTags] = useState("core,multi-asset");
@@ -35,6 +53,16 @@ export function PortfolioLabPage() {
   const portfolios = useQuery({
     queryKey: ["portfolio-lab", "portfolios"],
     queryFn: () => listPortfolioDefinitions(),
+  });
+  const leaderboardQuery = useQuery({
+    queryKey: ["portfolio-lab", "leaderboard", leaderboardMarket],
+    queryFn: async () => {
+      const { data } = await api.get<{ items?: PortfolioLeaderboardRow[]; rows?: PortfolioLeaderboardRow[] } | PortfolioLeaderboardRow[]>("/portfolio-lab/leaderboard", {
+        params: { market: leaderboardMarket },
+      });
+      if (Array.isArray(data)) return data;
+      return data.items || data.rows || [];
+    },
   });
 
   const createMutation = useMutation({
@@ -59,6 +87,10 @@ export function PortfolioLabPage() {
     () => tickers.split(",").map((item) => item.trim().toUpperCase()).filter(Boolean),
     [tickers],
   );
+  const sortedLeaderboard = useMemo(() => {
+    const direction = leaderboardSort === "max_drawdown" || leaderboardSort === "turnover" ? 1 : -1;
+    return [...(leaderboardQuery.data || [])].sort((a, b) => direction * (Number(a[leaderboardSort] ?? 0) - Number(b[leaderboardSort] ?? 0)));
+  }, [leaderboardQuery.data, leaderboardSort]);
 
   const onCreate = (event: FormEvent) => {
     event.preventDefault();
@@ -169,6 +201,53 @@ export function PortfolioLabPage() {
           </form>
         </TerminalPanel>
       </div>
+
+      <TerminalPanel title="Portfolio Leaderboard" subtitle={`${leaderboardMarket} market / sortable construction quality`}>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="flex gap-1">
+            {(["India", "US"] as const).map((marketOpt) => (
+              <button key={marketOpt} type="button" className={`rounded border px-2 py-1 ${leaderboardMarket === marketOpt ? "border-terminal-accent bg-terminal-accent/10 text-terminal-accent" : "border-terminal-border text-terminal-muted"}`} onClick={() => setLeaderboardMarket(marketOpt)}>
+                {marketOpt}
+              </button>
+            ))}
+          </div>
+          <select className="rounded border border-terminal-border bg-terminal-bg px-2 py-1" value={leaderboardSort} onChange={(event) => setLeaderboardSort(event.target.value as LeaderboardSortKey)}>
+            <option value="sharpe">Sharpe</option>
+            <option value="cagr">CAGR</option>
+            <option value="max_drawdown">Max drawdown</option>
+            <option value="turnover">Turnover</option>
+            <option value="stability">Stability</option>
+            <option value="recency">Recency</option>
+            <option value="governance">Governance</option>
+          </select>
+        </div>
+        <div className="overflow-auto">
+          <table className="min-w-full text-[11px]">
+            <thead>
+              <tr className="border-b border-terminal-border/50 text-terminal-muted">
+                {["Run", "Portfolio", "Market", "Sharpe", "CAGR", "MaxDD", "Turnover", "Stability", "Recency", "Governance"].map((header) => <th key={header} className="px-2 py-1 text-left">{header}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {sortedLeaderboard.map((row, index) => (
+                <tr key={`${row.run_id || row.portfolio_id || row.name}-${index}`} className="border-b border-terminal-border/30">
+                  <td className="px-2 py-1">{row.run_id ? <Link className="text-terminal-accent" to={`/equity/portfolio/lab/runs/${row.run_id}`}>{row.run_id}</Link> : "-"}</td>
+                  <td className="px-2 py-1">{row.name || row.portfolio_id || "-"}</td>
+                  <td className="px-2 py-1">{row.market || leaderboardMarket}</td>
+                  <td className="px-2 py-1 text-right">{Number(row.sharpe || 0).toFixed(2)}</td>
+                  <td className="px-2 py-1 text-right">{Number(row.cagr || 0).toLocaleString(undefined, { style: "percent", maximumFractionDigits: 2 })}</td>
+                  <td className="px-2 py-1 text-right text-terminal-neg">{Number(row.max_drawdown || 0).toLocaleString(undefined, { style: "percent", maximumFractionDigits: 2 })}</td>
+                  <td className="px-2 py-1 text-right">{Number(row.turnover || 0).toFixed(3)}</td>
+                  <td className="px-2 py-1 text-right">{Number(row.stability || 0).toFixed(2)}</td>
+                  <td className="px-2 py-1 text-right">{Number(row.recency || 0).toFixed(2)}</td>
+                  <td className="px-2 py-1 text-right">{Number(row.governance || 0).toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!sortedLeaderboard.length && <div className="p-3 text-xs text-terminal-muted">{leaderboardQuery.isLoading ? "Loading leaderboard..." : "No leaderboard rows."}</div>}
+        </div>
+      </TerminalPanel>
     </div>
   );
 }

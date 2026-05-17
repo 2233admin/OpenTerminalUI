@@ -64,6 +64,7 @@ from backend.models.core import (
 from backend.portfolio_backtests.models import PortfolioBacktestJob
 from backend.experiments.models import Experiment, ExperimentArtifact
 from backend.instruments.models import InstrumentMaster
+from backend.saved_views.models import SavedViewORM
 from backend.models.user import RefreshToken, User, UserRole
 from backend.models.journal import JournalEntry
 from backend.models.notification import Notification
@@ -128,6 +129,7 @@ __all__ = [
     "ChartDrawing",
     "ChartTemplate",
     "UserLayoutORM",
+    "SavedViewORM",
     "User",
     "UserRole",
     "RefreshToken",

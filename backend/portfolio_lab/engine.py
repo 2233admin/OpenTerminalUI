@@ -5,12 +5,15 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from backend.core.execution_model import apply_execution_model, parse_execution_config
+
 
 @dataclass
 class PortfolioEngineResult:
     weights_over_time: list[dict]
     returns_series: list[dict]
     turnover_series: list[dict]
+    execution_series: list[dict]
     contribution_series: list[dict]
     correlation_matrix: dict
 
@@ -91,9 +94,12 @@ def run_portfolio_engine(
     max_weight: float = 0.25,
     cash_buffer: float = 0.0,
     vol_window: int = 20,
+    execution_model: dict | None = None,
+    adv_by_asset: dict[str, float] | None = None,
+    assumed_equity: float = 100000.0,
 ) -> PortfolioEngineResult:
     if asset_returns.empty:
-        return PortfolioEngineResult([], [], [], [], {"labels": [], "values": [], "cluster_order": []})
+        return PortfolioEngineResult([], [], [], [], [], {"labels": [], "values": [], "cluster_order": []})
 
     returns = asset_returns.copy().sort_index().dropna(how="all")
     returns = returns.fillna(0.0)
@@ -113,7 +119,10 @@ def run_portfolio_engine(
     rows_weights: list[dict] = []
     rows_returns: list[dict] = []
     rows_turnover: list[dict] = []
+    rows_execution: list[dict] = []
     rows_contrib: list[dict] = []
+    execution = parse_execution_config(execution_model)
+    adv_by_asset = {str(k).upper(): float(v) for k, v in (adv_by_asset or {}).items()}
 
     for idx, date in enumerate(returns.index):
         if date in rebalance_idx:
@@ -127,18 +136,58 @@ def run_portfolio_engine(
 
             if cash_buffer > 0:
                 next_w = next_w * max(0.0, 1.0 - cash_buffer)
-            turnover = float(np.sum(np.abs(next_w - current_w)))
+            delta_w = next_w - current_w
+            filled_delta = np.zeros_like(delta_w)
+            exec_cost_return = 0.0
+            fills = []
+            for asset_idx, asset in enumerate(assets):
+                requested_qty = float((assumed_equity * delta_w[asset_idx]))
+                bar_volume = adv_by_asset.get(asset.upper(), execution.adv or assumed_equity)
+                fill = apply_execution_model(
+                    requested_qty,
+                    1.0,
+                    side="BUY" if requested_qty >= 0 else "SELL",
+                    bar_volume=bar_volume,
+                    config=execution,
+                )
+                filled_delta[asset_idx] = fill.filled_quantity / assumed_equity if assumed_equity > 0 else 0.0
+                exec_cost_return += abs(fill.filled_quantity) * fill.slippage_bps / 10_000.0 / assumed_equity
+                fills.append(
+                    {
+                        "asset": asset,
+                        "requested_weight_delta": float(delta_w[asset_idx]),
+                        "filled_weight_delta": float(filled_delta[asset_idx]),
+                        "slippage_bps": float(fill.slippage_bps),
+                        "capped": fill.capped,
+                    }
+                )
+            turnover = float(np.sum(np.abs(filled_delta)))
+            next_w = current_w + filled_delta
+            next_w = np.clip(next_w, 0.0, max_weight)
+            total_next = float(np.sum(next_w))
+            if total_next > 1.0:
+                next_w = next_w / total_next
             current_w = next_w
         else:
             turnover = 0.0
+            exec_cost_return = 0.0
+            fills = []
 
         ret_vec = returns.loc[date].to_numpy(dtype=float)
         contrib_vec = current_w * ret_vec
-        port_ret = float(np.sum(contrib_vec))
+        port_ret = float(np.sum(contrib_vec) - exec_cost_return)
 
         row_w = {"date": date.date().isoformat(), "weights": {assets[i]: float(current_w[i]) for i in range(len(assets))}}
         rows_weights.append(row_w)
         rows_turnover.append({"date": date.date().isoformat(), "turnover": turnover})
+        rows_execution.append(
+            {
+                "date": date.date().isoformat(),
+                "execution_cost_return": float(exec_cost_return),
+                "model": execution.model,
+                "fills": fills,
+            }
+        )
         rows_returns.append({"date": date.date().isoformat(), "return": port_ret})
 
         contrib_payload = {"date": date.date().isoformat()}
@@ -155,6 +204,7 @@ def run_portfolio_engine(
         weights_over_time=rows_weights,
         returns_series=rows_returns,
         turnover_series=rows_turnover,
+        execution_series=rows_execution,
         contribution_series=rows_contrib,
         correlation_matrix={
             "labels": labels,

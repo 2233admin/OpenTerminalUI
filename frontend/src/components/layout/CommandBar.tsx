@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Search, History, Command as CommandIcon, Loader2, Sparkles, X, ArrowRight } from "lucide-react";
 import Fuse from "fuse.js";
 import { useNavigate } from "react-router-dom";
@@ -154,10 +154,21 @@ export function CommandBar({ onExecute }: Props) {
   const [instrumentCache, setInstrumentCache] = useState<SearchSymbolItem[]>(() => (typeof window !== "undefined" ? readJson<SearchSymbolItem[]>(INSTRUMENT_CACHE_KEY, []) : []));
   const [isOpen, setIsOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const lastFocusedElementRef = useRef<HTMLElement | null>(null);
   const searchReqRef = useRef(0);
   const previewReqRef = useRef(0);
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectedIndexRef = useRef(0);
+
+  const closeCommandPalette = useCallback((restoreFocus = false) => {
+    setIsOpen(false);
+    setReverseSearchOpen(false);
+    setPreview(null);
+    if (restoreFocus) {
+      window.setTimeout(() => lastFocusedElementRef.current?.focus(), 0);
+    }
+  }, []);
 
   useEffect(() => {
     writeJson(HISTORY_KEY, history.slice(0, MAX_HISTORY));
@@ -169,6 +180,7 @@ export function CommandBar({ onExecute }: Props) {
 
   useEffect(() => {
     const focusCommandBar = () => {
+      lastFocusedElementRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       inputRef.current?.focus();
       inputRef.current?.select();
       setIsOpen(true);
@@ -199,8 +211,7 @@ export function CommandBar({ onExecute }: Props) {
       }
 
       if (ev.key === "Escape" && (document.activeElement === inputRef.current || isEditing)) {
-        setIsOpen(false);
-        setReverseSearchOpen(false);
+        closeCommandPalette(true);
         inputRef.current?.blur();
       }
     };
@@ -211,7 +222,7 @@ export function CommandBar({ onExecute }: Props) {
       window.removeEventListener("keydown", onKeyDown, true);
       window.removeEventListener("focus-command-bar", focusCommandBar as EventListener);
     };
-  }, []);
+  }, [closeCommandPalette]);
 
   useEffect(() => {
     const query = value.trim();
@@ -659,7 +670,31 @@ export function CommandBar({ onExecute }: Props) {
   const getActiveSuggestion = () => suggestions[selectedIndexRef.current];
 
   return (
-    <div className="relative z-40 border-b border-terminal-border bg-[#0D1117]/95 px-3 py-2 backdrop-blur supports-[backdrop-filter]:bg-[#0D1117]/88">
+    <div
+      ref={rootRef}
+      className="relative z-40 border-b border-terminal-border bg-[#0D1117]/95 px-3 py-2 backdrop-blur supports-[backdrop-filter]:bg-[#0D1117]/88"
+      role={isOpen || aiOpen ? "dialog" : undefined}
+      aria-modal={isOpen || aiOpen ? true : undefined}
+      aria-label="Command palette"
+      onKeyDown={(event) => {
+        if (event.key !== "Tab" || (!isOpen && !aiOpen)) return;
+        const focusable = Array.from(
+          rootRef.current?.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          ) ?? [],
+        ).filter((element) => element.offsetParent !== null || element === inputRef.current);
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }}
+    >
       <div
         className={[
           "relative flex items-center gap-2 rounded-sm border bg-[#161B22] px-2 py-1 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.02)]",
@@ -726,9 +761,7 @@ export function CommandBar({ onExecute }: Props) {
             }
             if (e.key === "Escape") {
               e.preventDefault();
-              setIsOpen(false);
-              setReverseSearchOpen(false);
-              setPreview(null);
+              closeCommandPalette(true);
               (e.target as HTMLInputElement).blur();
             }
           }}
@@ -736,6 +769,11 @@ export function CommandBar({ onExecute }: Props) {
           style={{ caretColor: "#FF6B00", fontFamily: '"Fira Code", var(--ot-font-data)' }}
           placeholder="Type ticker, command, or search... (Ctrl+G)"
           aria-label="Command bar"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={isOpen}
+          aria-controls="command-bar-suggestions"
+          aria-activedescendant={isOpen && suggestions[selectedIndex] ? `command-bar-suggestion-${selectedIndex}` : undefined}
           autoComplete="off"
         />
         {loading ? <Loader2 className="h-4 w-4 animate-spin text-terminal-accent" /> : null}
@@ -803,7 +841,7 @@ export function CommandBar({ onExecute }: Props) {
               <Sparkles size={14} />
               AI RESEARCH COPILOT
             </div>
-            <button onClick={() => setAiOpen(false)} className="text-terminal-muted hover:text-terminal-text">
+            <button onClick={() => setAiOpen(false)} className="text-terminal-muted hover:text-terminal-text" aria-label="Close AI response">
               <X size={14} />
             </button>
           </div>
@@ -914,7 +952,7 @@ export function CommandBar({ onExecute }: Props) {
       )}
 
       {isOpen && (suggestions.length > 0 || searchingTickers) ? (
-        <div className="absolute left-3 right-3 top-[calc(100%-2px)] z-50 mt-1 overflow-hidden rounded-sm border border-terminal-border bg-[#0F141B] shadow-2xl">
+        <div id="command-bar-suggestions" role="listbox" aria-label="Command suggestions" className="absolute left-3 right-3 top-[calc(100%-2px)] z-50 mt-1 overflow-hidden rounded-sm border border-terminal-border bg-[#0F141B] shadow-2xl">
           <div className="flex items-center justify-between border-b border-terminal-border px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-terminal-muted">
             <div className="inline-flex items-center gap-2">
               {reverseSearchOpen ? <History className="h-3.5 w-3.5" /> : <CommandIcon className="h-3.5 w-3.5" />}
@@ -926,6 +964,9 @@ export function CommandBar({ onExecute }: Props) {
             {suggestions.map((item, idx) => (
               <button
                 key={item.key}
+                id={`command-bar-suggestion-${idx}`}
+                role="option"
+                aria-selected={idx === selectedIndex}
                 type="button"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => void submitCommand(item.command)}

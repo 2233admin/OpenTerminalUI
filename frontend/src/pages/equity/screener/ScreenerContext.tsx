@@ -11,6 +11,7 @@ import type {
   ScreenerRunResponseV3,
   UserScreenV3,
 } from "../../../types";
+import { consumePendingSavedView } from "../../../workspace/savedViewRestore";
 
 export type ScreenerView = "table" | "charts" | "treemap" | "scatter" | "scorecard" | "split";
 export type ScreenerTab = "library" | "custom" | "formula" | "saved" | "public";
@@ -57,6 +58,18 @@ export function ScreenerProvider({ children }: { children: React.ReactNode }) {
   const [view, setView] = useState<ScreenerView>("table");
   const [result, setResult] = useState<ScreenerRunResponseV3 | null>(null);
   const [selectedRow, setSelectedRow] = useState<Record<string, unknown> | null>(null);
+
+  useEffect(() => {
+    const payload = consumePendingSavedView(window.location.pathname);
+    if (!payload) return;
+    const filters = payload.filters ?? {};
+    const activeTabs = payload.activeTabs ?? {};
+    if (typeof filters.query === "string") setQuery(filters.query);
+    if (typeof filters.universe === "string") setUniverse(filters.universe);
+    if (typeof filters.selectedPresetId === "string") setSelectedPresetId(filters.selectedPresetId);
+    if (activeTabs.tab === "library" || activeTabs.tab === "custom" || activeTabs.tab === "formula" || activeTabs.tab === "saved" || activeTabs.tab === "public") setTab(activeTabs.tab);
+    if (activeTabs.view === "table" || activeTabs.view === "charts" || activeTabs.view === "treemap" || activeTabs.view === "scatter" || activeTabs.view === "scorecard" || activeTabs.view === "split") setView(activeTabs.view);
+  }, []);
 
   const refreshScreens = useCallback(async () => {
     const [presetItems, savedItems, publicItems] = await Promise.all([
@@ -110,8 +123,10 @@ export function ScreenerProvider({ children }: { children: React.ReactNode }) {
           universe,
           limit: 250,
           offset: 0,
+          sort_by: "composite_score",
           sort_order: "desc",
           include_sparklines: true,
+          include_scores: ["value", "momentum", "quality", "low_vol", "composite"],
         });
         setResult(data);
         if (data.results.length > 0) {

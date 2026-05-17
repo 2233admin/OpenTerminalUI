@@ -1,17 +1,19 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
 from backend.model_lab.schemas import (
     CompareRequest,
     ExperimentCreate,
     ExperimentRunRequest,
+    MonteCarloRequest,
     ExperimentSummary,
     ParamSweepRequest,
     RunMetrics,
     RunTimeseries,
     WalkForwardRequest,
 )
+from backend.model_lab.montecarlo import create_monte_carlo_job, execute_monte_carlo_job, get_monte_carlo_job
 from backend.model_lab.service import get_model_lab_service
 
 router = APIRouter()
@@ -64,9 +66,44 @@ async def run_report(run_id: str, force_refresh: bool = Query(default=False)) ->
     return report
 
 
+@router.post("/model-lab/runs/{run_id}/monte-carlo")
+async def run_monte_carlo(run_id: str, payload: MonteCarloRequest, background_tasks: BackgroundTasks) -> dict:
+    report = await get_model_lab_service().get_report(run_id=run_id, force_refresh=False)
+    if report.get("status") != "succeeded":
+        raise HTTPException(status_code=400, detail="Run must be completed before Monte Carlo")
+    job = create_monte_carlo_job(run_id)
+    background_tasks.add_task(execute_monte_carlo_job, job.id, report, payload.model_dump())
+    return {"job_id": job.id, "run_id": run_id, "status": job.status}
+
+
+@router.get("/model-lab/monte-carlo/{job_id}")
+async def monte_carlo_status(job_id: str) -> dict:
+    job = get_monte_carlo_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Monte Carlo job not found")
+    return {
+        "job_id": job.id,
+        "run_id": job.run_id,
+        "status": job.status,
+        "created_at": job.created_at,
+        "finished_at": job.finished_at,
+        "error": job.error,
+        "result": job.result,
+    }
+
+
 @router.post("/model-lab/compare")
 async def compare_runs(payload: CompareRequest) -> dict:
     return await get_model_lab_service().compare(payload.run_ids)
+
+
+@router.get("/model-lab/leaderboard")
+async def model_lab_leaderboard(
+    sort_by: str = Query(default="sharpe"),
+    descending: bool = Query(default=True),
+    limit: int = Query(default=50, ge=1, le=250),
+) -> dict:
+    return await get_model_lab_service().leaderboard(sort_by=sort_by, descending=descending, limit=limit)
 
 
 @router.post("/model-lab/experiments/{experiment_id}/walk-forward")

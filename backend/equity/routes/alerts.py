@@ -1,1 +1,1 @@
-from backend.api.routes.alerts import router
+from backend.alerts.routes import router

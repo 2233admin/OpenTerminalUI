@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -11,7 +11,12 @@ from backend.api.deps import get_db, get_unified_fetcher
 from backend.auth.deps import get_current_user
 from backend.models import User
 from backend.services.data_version_service import create_data_version, get_active_data_version
-from backend.services.pit_fundamentals_service import get_fundamentals_asof, get_universe_members
+from backend.services.pit_fundamentals_service import (
+    fetch_and_store_pit_fundamentals,
+    get_fundamentals as get_pit_fundamentals,
+    get_fundamentals_asof,
+    get_universe_members,
+)
 from backend.services.price_series_service import get_price_series
 
 router = APIRouter()
@@ -113,6 +118,37 @@ def get_fundamentals(
         "as_of": as_of,
         "data_version_id": resolved_version_id,
         "metrics": metrics,
+    }
+
+
+@router.get("/pit/fundamentals/{symbol}")
+async def get_pit_fundamentals_endpoint(
+    symbol: str,
+    as_of: str = Query(default_factory=lambda: datetime.now(timezone.utc).strftime("%Y-%m-%d")),
+    refresh: bool = Query(default=False),
+    data_version_id: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+    fetcher: Any = Depends(get_unified_fetcher),
+    _: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    if refresh:
+        await fetch_and_store_pit_fundamentals(db, fetcher, symbol.upper(), data_version_id=data_version_id)
+    try:
+        parsed_as_of = date.fromisoformat(as_of)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="as_of must be YYYY-MM-DD") from exc
+    resolved_version_id, rows = get_pit_fundamentals(
+        db,
+        symbol.upper(),
+        as_of=parsed_as_of,
+        data_version_id=data_version_id,
+    )
+    return {
+        "symbol": symbol.upper(),
+        "as_of": as_of,
+        "data_version_id": resolved_version_id,
+        "count": len(rows),
+        "items": rows,
     }
 
 

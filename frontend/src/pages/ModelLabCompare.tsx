@@ -14,7 +14,7 @@ import {
   YAxis,
 } from "recharts";
 
-import { compareModelRuns } from "../api/modelLab";
+import { compareModelRuns } from "../api/client";
 import { TerminalPanel } from "../components/terminal/TerminalPanel";
 
 export function ModelLabComparePage() {

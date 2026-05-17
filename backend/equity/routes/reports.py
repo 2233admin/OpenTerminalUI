@@ -1,1 +1,1 @@
-from backend.api.routes.reports import router
+from backend.reports.routes import router

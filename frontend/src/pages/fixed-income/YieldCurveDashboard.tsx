@@ -25,7 +25,7 @@ export function YieldCurveDashboard() {
 
   const { data: currentCurve, isLoading: loadingCurrent } = useQuery({
     queryKey: ["yield-curve"],
-    queryFn: fetchYieldCurve,
+    queryFn: () => fetchYieldCurve(),
     refetchInterval: 300_000, // 5 minutes
   });
 

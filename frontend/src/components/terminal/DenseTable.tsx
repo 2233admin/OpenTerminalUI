@@ -402,6 +402,9 @@ export function DenseTable<T>({
       return (
         <div
           key={col.key}
+          role="columnheader"
+          aria-colindex={orderedColumns.findIndex((ordered) => ordered.key === col.key) + 1}
+          aria-sort={isSorted === "asc" ? "ascending" : isSorted === "desc" ? "descending" : col.sortable ? "none" : undefined}
           className="group relative flex h-7 shrink-0 items-center border-r border-[#242d3a] bg-[#1A2332]"
           style={{ width }}
           draggable
@@ -510,6 +513,23 @@ export function DenseTable<T>({
           className="absolute inset-0 overflow-auto"
           onScroll={(e: UIEvent<HTMLDivElement>) => setScrollTop(e.currentTarget.scrollTop)}
           onKeyDown={(event) => {
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+              event.preventDefault();
+              const direction = event.key === "ArrowDown" ? 1 : -1;
+              const currentSortedIndex = selectedIndex >= 0 ? sortedRows.findIndex((entry) => entry.index === selectedIndex) : -1;
+              const nextSortedIndex = Math.max(0, Math.min(sortedRows.length - 1, currentSortedIndex + direction));
+              const next = sortedRows[nextSortedIndex];
+              if (next) {
+                setSelectedRows(new Set([next.index]));
+                setSelectionAnchor(next.index);
+              }
+              return;
+            }
+            if (event.key === "Enter" && selectedIndex >= 0) {
+              const selected = sortedRows.find((entry) => entry.index === selectedIndex);
+              if (selected) onRowClick?.(selected.row, selected.index);
+              return;
+            }
             if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
               event.preventDefault();
               openContextMenuFromKeyboard();
@@ -517,9 +537,13 @@ export function DenseTable<T>({
           }}
           ref={hostRef}
           tabIndex={0}
+          role="grid"
+          aria-rowcount={rows.length + 1}
+          aria-colcount={orderedColumns.length}
+          aria-label="Dense data table"
         >
           <div style={{ minWidth: totalWidth }}>
-            <div className="sticky top-0 z-20 flex border-b border-terminal-border">
+            <div role="row" aria-rowindex={1} className="sticky top-0 z-20 flex border-b border-terminal-border">
               {frozenColumns.length ? (
                 <div className="sticky left-0 z-30 flex bg-[#1A2332] shadow-[2px_0_0_0_rgba(0,0,0,0.18)]">{headerCells(frozenColumns)}</div>
               ) : null}
@@ -545,6 +569,9 @@ export function DenseTable<T>({
                   return (
                     <div
                       key={`${key}:${col.key}`}
+                      role="gridcell"
+                      aria-rowindex={originalIndex + 2}
+                      aria-colindex={orderedColumns.findIndex((ordered) => ordered.key === col.key) + 1}
                       className={`flex h-[26px] shrink-0 items-center border-r border-[#1b2230] px-2 ${cellAlignClass(col)} ${cellTypographyClass(col)} ${
                         flash === "up" ? "bg-emerald-500/10" : flash === "down" ? "bg-rose-500/10" : ""
                       }`}
@@ -559,6 +586,9 @@ export function DenseTable<T>({
                 <div
                   key={key}
                   role="row"
+                  aria-rowindex={originalIndex + 2}
+                  aria-selected={selected}
+                  tabIndex={selected ? 0 : -1}
                   data-row-index={originalIndex}
                   className={`relative flex h-[26px] border-b border-[#141b25] ${rowCls}`}
                   onClick={(e) => {

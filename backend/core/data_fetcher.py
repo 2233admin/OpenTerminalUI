@@ -62,6 +62,9 @@ class MarketDataFetcher:
             return t
         return t
 
+    def _normalized_ticker(self, ticker: str) -> str:
+        return self.normalized_ticker(ticker)
+
     async def fetch_stock_data(self, symbol: str) -> dict[str, Any]:
         yf_symbol = self.normalized_ticker(symbol)
         tk = yf.Ticker(yf_symbol)

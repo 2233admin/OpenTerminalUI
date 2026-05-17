@@ -12,6 +12,7 @@ import pandas as pd
 
 from models.pure_jump_vol.signals import generate_pjv_signals
 from backend.core.single_asset_backtest import generate_sma_crossover_signals
+from backend.core.execution_model import ExecutionModelConfig, parse_execution_config
 
 
 @dataclass(frozen=True)
@@ -154,6 +155,11 @@ STRATEGY_CATALOG: list[dict[str, Any]] = [
 def get_strategy_catalog() -> list[dict[str, Any]]:
     """Return the full strategy catalog for the frontend."""
     return STRATEGY_CATALOG
+
+
+def get_execution_model(config: dict[str, Any] | None = None) -> ExecutionModelConfig:
+    """Expose the shared execution model for strategy/backtest callers."""
+    return parse_execution_config(config)
 
 
 def _get_volume_series(frame: pd.DataFrame) -> pd.Series:

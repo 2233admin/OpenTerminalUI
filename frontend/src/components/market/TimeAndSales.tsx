@@ -223,7 +223,7 @@ export function TimeAndSales({ ticker, limit = 500, className = "" }: TimeAndSal
           </label>
         </div>
 
-        <div className="overflow-hidden rounded-sm border border-terminal-border bg-terminal-bg">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-sm border border-terminal-border bg-terminal-bg">
           <div className="grid grid-cols-[96px_1fr_1fr_1fr] gap-2 border-b border-terminal-border bg-terminal-panel px-3 py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-terminal-muted">
             <span>Time</span>
             <span className="text-right">Price</span>
@@ -232,7 +232,7 @@ export function TimeAndSales({ ticker, limit = 500, className = "" }: TimeAndSal
           </div>
           <div
             ref={scrollRef}
-            className="h-[640px] overflow-auto font-mono"
+            className="min-h-0 flex-1 overflow-auto font-mono lg:max-h-[calc(100dvh-18rem)]"
             onMouseEnter={() => setPaused(true)}
             onMouseLeave={() => setPaused(false)}
             onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}

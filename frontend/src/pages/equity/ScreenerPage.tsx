@@ -4,6 +4,10 @@ import { TerminalBadge } from "../../components/terminal/TerminalBadge";
 import { TerminalButton } from "../../components/terminal/TerminalButton";
 import { TerminalInput } from "../../components/terminal/TerminalInput";
 import { TerminalPanel } from "../../components/terminal/TerminalPanel";
+import { AiInsightCard } from "../../components/terminal/AiInsightCard";
+import { SavedViewsControl } from "../../components/savedViews/SavedViewsControl";
+
+import { fetchCollectionBriefing } from "../../api/client";
 
 import { AlternateDataFilter } from "./screener/AlternateDataFilter";
 import { AdvancedArithmetic } from "./screener/AdvancedArithmetic";
@@ -32,6 +36,8 @@ function ScreenerWorkspace() {
     setTab,
     result,
     view,
+    query,
+    universe,
     selectedPresetId,
     presets,
     setSelectedPresetId,
@@ -77,7 +83,24 @@ function ScreenerWorkspace() {
           </div>
         </TerminalPanel>
 
-        <TerminalPanel title="Workspace" subtitle="Screener" actions={<TerminalBadge variant="live">revamped</TerminalBadge>}>
+        <TerminalPanel
+          title="Workspace"
+          subtitle="Screener"
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              <TerminalBadge variant="live">revamped</TerminalBadge>
+              <SavedViewsControl
+                pageLabel="Screener"
+                capture={() => ({
+                  filters: { query, universe, selectedPresetId },
+                  activeTabs: { tab, view },
+                  tableColumns: "results-default",
+                  selectedTicker: typeof selectedRow?.ticker === "string" ? selectedRow.ticker : undefined,
+                })}
+              />
+            </div>
+          }
+        >
           <div className="flex flex-wrap gap-1 text-xs">
             {[
               ["library", "Screens Library"],
@@ -116,6 +139,16 @@ function ScreenerWorkspace() {
 
         {tab === "saved" ? <SavedScreens /> : null}
         {tab === "public" ? <PublicScreens /> : null}
+
+        {tab !== "saved" && tab !== "public" && result && result.results.length > 0 && (
+          <div className="mb-3">
+            <AiInsightCard
+              title="AI Screener Analysis"
+              description={`Gemma-powered assessment of the top ${Math.min(result.results.length, 10)} results in this screen`}
+              fetcher={() => fetchCollectionBriefing(result.results.slice(0, 10).map((i: any) => String(i.ticker || i.symbol || "")), "screen results")}
+            />
+          </div>
+        )}
 
         {view === "table" || view === "split" ? <ResultsTable /> : null}
         {view !== "table" ? <ScreenVizLoader screenId={selectedPresetId} vizData={(result?.viz_data || {}) as Record<string, unknown>} /> : null}

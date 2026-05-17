@@ -3,18 +3,21 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from backend.api.routes import (
-    admin, alerts, backtest, backtests, chart, crypto, data,
+    admin, backtest, backtests, chart, crypto, data,
     commodities, depth, export, forex, fundamentals, health, hotlists, indicators,
     kite, news, emotion, ai_insights, paper, peers, plugins, portfolio, quotes,
-    reports, screener, scripting, search, shareholding, stocks,
+    screener, scripting, search, shareholding, stocks,
     stream, valuation, options, audit, data_layer, governance, patterns,
     user_layouts, portfolios,
-    oms, ops, risk,
+    ops, risk,
     api_keys, dividends, rs, public_api
 )
+from backend.alerts import routes as alerts
 from backend.equity.routes import earnings, events, mutual_funds, auth
 from backend.model_lab import router as model_lab_router
+from backend.oms import routes as oms
 from backend.portfolio_lab import router as portfolio_lab_router
+from backend.reports import routes as reports
 from backend.screener import legacy_router as screener_v1_router
 from backend.screener.router import router as screener_revamped_router
 
@@ -54,7 +57,7 @@ equity_router.include_router(commodities.router, prefix="/api", tags=["commoditi
 equity_router.include_router(forex.router, prefix="/api", tags=["forex"])
 equity_router.include_router(hotlists.router, prefix="/api", tags=["hotlists"])
 equity_router.include_router(depth.router, prefix="/api", tags=["depth"])
-equity_router.include_router(patterns.router, prefix="/api", tags=["patterns"])
+equity_router.include_router(patterns.router, tags=["patterns"])
 equity_router.include_router(paper.router, prefix="/api", tags=["paper"])
 equity_router.include_router(portfolios.router, prefix="/api", tags=["portfolios"])
 equity_router.include_router(scripting.router, prefix="/api", tags=["scripting"])

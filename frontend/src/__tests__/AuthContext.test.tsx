@@ -35,8 +35,12 @@ vi.mock("axios", async () => {
     default: {
       create: () => ({
         post,
+        request: vi.fn(),
         interceptors: {
           request: {
+            use: vi.fn(),
+          },
+          response: {
             use: vi.fn(),
           },
         },

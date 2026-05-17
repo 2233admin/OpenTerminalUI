@@ -146,6 +146,9 @@ class ModelLabService:
                 symbol = str(tickers[0]).strip().upper()
             if not symbol:
                 symbol = "RELIANCE"
+            market = str(universe.get("market") or universe.get("exchange") or "NSE").strip().upper() if isinstance(universe, dict) else "NSE"
+            if market not in {"NSE", "BSE", "NASDAQ", "NYSE", "AMEX"}:
+                market = "NSE"
 
             model_key = str(experiment.model_key).strip()
             strategy = model_key if ":" in model_key else f"example:{model_key}"
@@ -156,13 +159,14 @@ class ModelLabService:
                 "fee_bps": float(cost.get("commission_bps", 0.0) or 0.0),
                 "slippage_bps": float(cost.get("slippage_bps", 0.0) or 0.0),
                 "position_fraction": float(cost.get("position_fraction", 1.0) or 1.0),
+                "execution_model": cost.get("execution_model", {}) if isinstance(cost.get("execution_model"), dict) else {},
             }
 
             backtest_run_id = await get_backtest_job_service().submit(
                 BacktestJobRequest(
                     symbol=symbol,
                     asset=symbol,
-                    market="NSE",
+                    market=market,
                     start=experiment.start_date,
                     end=experiment.end_date,
                     strategy=strategy,
@@ -415,6 +419,9 @@ class ModelLabService:
             universe = experiment.universe_json or {}
             tickers = universe.get("tickers") if isinstance(universe, dict) else None
             symbol = str(tickers[0]).strip().upper() if isinstance(tickers, list) and tickers else "RELIANCE"
+            market = str(universe.get("market") or universe.get("exchange") or "NSE").strip().upper() if isinstance(universe, dict) else "NSE"
+            if market not in {"NSE", "BSE", "NASDAQ", "NYSE", "AMEX"}:
+                market = "NSE"
             strategy = experiment.model_key if ":" in experiment.model_key else f"example:{experiment.model_key}"
 
             rows = []
@@ -427,7 +434,7 @@ class ModelLabService:
                     BacktestJobRequest(
                         symbol=symbol,
                         asset=symbol,
-                        market="NSE",
+                        market=market,
                         start=experiment.start_date,
                         end=experiment.end_date,
                         strategy=strategy,
@@ -471,6 +478,47 @@ class ModelLabService:
                 "results": rows,
                 "best": best[0] if best else None,
             }
+        finally:
+            db.close()
+
+    async def leaderboard(self, sort_by: str = "sharpe", descending: bool = True, limit: int = 50) -> dict:
+        allowed = {"sharpe", "cagr", "max_drawdown", "turnover", "stability", "recency", "governance_state"}
+        sort_key = sort_by if sort_by in allowed else "sharpe"
+        db = next(get_db())
+        try:
+            rows = (
+                db.query(ModelRun, ModelExperiment, ModelRunMetrics)
+                .join(ModelExperiment, ModelRun.experiment_id == ModelExperiment.id)
+                .outerjoin(ModelRunMetrics, ModelRunMetrics.run_id == ModelRun.id)
+                .order_by(ModelRun.started_at.desc())
+                .limit(max(limit * 4, limit))
+                .all()
+            )
+            items = []
+            for run, experiment, metrics_row in rows:
+                metrics = metrics_row.metrics_json if metrics_row else {}
+                governance_state = "approved" if run.status == "succeeded" and not run.error else ("blocked" if run.status == "failed" else "pending")
+                universe = experiment.universe_json or {}
+                items.append(
+                    {
+                        "run_id": run.id,
+                        "experiment_id": experiment.id,
+                        "name": experiment.name,
+                        "model_key": experiment.model_key,
+                        "market": universe.get("market", "NSE") if isinstance(universe, dict) else "NSE",
+                        "status": run.status,
+                        "sharpe": float(metrics.get("sharpe", 0.0) or 0.0),
+                        "cagr": float(metrics.get("cagr", 0.0) or 0.0),
+                        "max_drawdown": float(metrics.get("max_drawdown", 0.0) or 0.0),
+                        "turnover": float(metrics.get("turnover", 0.0) or 0.0),
+                        "stability": float(metrics.get("return_stability_r2", metrics.get("stability", 0.0)) or 0.0),
+                        "recency": run.finished_at or run.started_at,
+                        "governance_state": governance_state,
+                    }
+                )
+            reverse = bool(descending)
+            items.sort(key=lambda item: item.get(sort_key) or "", reverse=reverse)
+            return {"items": items[:limit], "sort_by": sort_key, "descending": reverse}
         finally:
             db.close()
 

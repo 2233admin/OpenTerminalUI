@@ -1,3 +1,4 @@
+import { useId } from "react";
 import type { ReactNode } from "react";
 import { TerminalInput } from "./TerminalInput";
 
@@ -42,11 +43,22 @@ export function TerminalCombobox<T>({
   loading = false,
   "data-testid": dataTestId,
 }: Props<T>) {
+  const generatedId = useId();
+  const inputId = `${generatedId}-input`;
+  const listboxId = `${generatedId}-listbox`;
+  const activeOptionId = open && selectedIndex >= 0 && items[selectedIndex] ? `${generatedId}-option-${selectedIndex}` : undefined;
+
   return (
     <div className={className}>
       <TerminalInput
         tone="ui"
+        id={inputId}
+        role="combobox"
+        aria-autocomplete="list"
         aria-busy={loading || undefined}
+        aria-expanded={open}
+        aria-controls={listboxId}
+        aria-activedescendant={activeOptionId}
         className={inputClassName}
         value={value}
         placeholder={placeholder}
@@ -58,10 +70,13 @@ export function TerminalCombobox<T>({
         data-testid={dataTestId}
       />
       {open && items.length > 0 ? (
-        <div className={listClassName}>
+        <div id={listboxId} role="listbox" aria-labelledby={inputId} className={listClassName}>
           {items.map((item, index) => (
             <div
               key={getItemKey(item, index)}
+              id={`${generatedId}-option-${index}`}
+              role="option"
+              aria-selected={index === selectedIndex}
               className={itemClassName}
               onMouseDown={(e) => {
                 e.preventDefault();

@@ -2,8 +2,12 @@ import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { getPortfolioDefinition, listStrategyBlends, runPortfolioDefinition } from "../api/portfolioLab";
+import { getPortfolioDefinition, listStrategyBlends, runPortfolioDefinition } from "../api/client";
 import { TerminalPanel } from "../components/terminal/TerminalPanel";
+
+function isCompletedStatus(status: string): boolean {
+  return status === "succeeded" || status === "completed" || status === "done";
+}
 
 export function PortfolioLabDetailPage() {
   const { id = "" } = useParams();
@@ -30,6 +34,9 @@ export function PortfolioLabDetailPage() {
   });
 
   const latestRun = portfolioQuery.data?.runs?.[0];
+  const openTearSheet = (runId: string) => {
+    window.open(`/api/reports/tearsheets/portfolio-lab/${encodeURIComponent(runId)}?download=false`, "_blank", "noopener,noreferrer");
+  };
 
   return (
     <div className="space-y-3 p-3">
@@ -62,7 +69,12 @@ export function PortfolioLabDetailPage() {
                     <div>{run.run_id}</div>
                     <div className="text-terminal-muted">{run.status}</div>
                   </div>
-                  <Link className="rounded border border-terminal-border px-2 py-1" to={`/equity/portfolio/lab/runs/${run.run_id}`}>Report</Link>
+                  <div className="flex gap-1">
+                    {isCompletedStatus(run.status) && (
+                      <button type="button" className="rounded border border-terminal-border px-2 py-1" onClick={() => openTearSheet(run.run_id)}>Tear-sheet</button>
+                    )}
+                    <Link className="rounded border border-terminal-border px-2 py-1" to={`/equity/portfolio/lab/runs/${run.run_id}`}>Report</Link>
+                  </div>
                 </div>
               ))}
               {!portfolioQuery.data.runs?.length && <div className="text-terminal-muted">No runs yet.</div>}

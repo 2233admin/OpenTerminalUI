@@ -80,20 +80,26 @@ export function MissionControlGrid() {
           <button type="button" className="rounded-sm border border-terminal-border px-2 py-2 text-xs text-terminal-text hover:border-terminal-accent" onClick={() => navigate("/equity/stocks")}>
             Equity Market
           </button>
-          <button type="button" className="rounded-sm border border-terminal-border px-2 py-2 text-xs text-terminal-text hover:border-terminal-accent" onClick={() => navigate("/equity/chart-workstation")}>
-            Chart WS
+          <button type="button" className="rounded-sm border border-terminal-border px-2 py-2 text-xs text-terminal-text hover:border-terminal-accent" onClick={() => navigate("/equity/screener")}>
+            Screener
           </button>
-          <button type="button" className="rounded-sm border border-terminal-border px-2 py-2 text-xs text-terminal-text hover:border-terminal-accent" onClick={() => navigate("/equity/launchpad")}>
-            Launchpad
+          <button type="button" className="rounded-sm border border-terminal-border px-2 py-2 text-xs text-terminal-text hover:border-terminal-accent" onClick={() => navigate("/equity/factors")}>
+            Factors
           </button>
-          <button type="button" className="rounded-sm border border-terminal-border px-2 py-2 text-xs text-terminal-text hover:border-terminal-accent" onClick={() => navigate("/equity/crypto")}>
-            Crypto
+          <button type="button" className="rounded-sm border border-terminal-border px-2 py-2 text-xs text-terminal-text hover:border-terminal-accent" onClick={() => navigate("/equity/intelligence-timeline")}>
+            Intelligence
+          </button>
+          <button type="button" className="rounded-sm border border-terminal-border px-2 py-2 text-xs text-terminal-text hover:border-terminal-accent" onClick={() => navigate("/equity/saved-views")}>
+            Saved Views
           </button>
           <button type="button" className="rounded-sm border border-terminal-border px-2 py-2 text-xs text-terminal-text hover:border-terminal-accent" onClick={() => navigate("/equity/portfolio")}>
             Portfolio
           </button>
           <button type="button" className="rounded-sm border border-terminal-border px-2 py-2 text-xs text-terminal-text hover:border-terminal-accent" onClick={() => navigate("/backtesting")}>
             Backtesting
+          </button>
+          <button type="button" className="rounded-sm border border-terminal-border px-2 py-2 text-xs text-terminal-text hover:border-terminal-accent" onClick={() => navigate("/equity/launchpad")}>
+            Launchpad
           </button>
         </div>
       </MissionControlPanel>

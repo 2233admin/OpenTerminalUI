@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Plus, Table, Grid3X3, Trash2 } from "lucide-react";
+import { MoreHorizontal, Plus, Table, Grid3X3, Trash2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
@@ -198,16 +198,21 @@ export function WatchlistManager() {
           {watchlists?.map(wl => (
             <div
               key={wl.id}
-              onClick={() => setActiveWlId(wl.id)}
-              className={`group flex items-center justify-between rounded px-3 py-2 cursor-pointer transition-colors ${activeWlId === wl.id ? 'bg-terminal-accent/20 text-terminal-accent' : 'text-terminal-muted hover:bg-terminal-bg hover:text-terminal-text'}`}
+              className={`group flex items-center justify-between rounded transition-colors ${activeWlId === wl.id ? 'bg-terminal-accent/20 text-terminal-accent' : 'text-terminal-muted hover:bg-terminal-bg hover:text-terminal-text'}`}
             >
-              <div className="flex flex-col">
+              <button
+                type="button"
+                onClick={() => setActiveWlId(wl.id)}
+                className="flex min-w-0 flex-1 flex-col px-3 py-2 text-left"
+                aria-pressed={activeWlId === wl.id}
+              >
                 <span className="text-xs font-bold uppercase">{wl.name}</span>
                 <span className="text-[9px] opacity-60">{wl.symbols.length} items</span>
-              </div>
+              </button>
               <button
                 onClick={(e) => { e.stopPropagation(); if(confirm('Delete?')) deleteMut.mutate(wl.id); }}
-                className="opacity-0 group-hover:opacity-100 text-terminal-neg hover:text-red-400"
+                className="mr-2 text-terminal-neg opacity-0 hover:text-red-400 group-hover:opacity-100 focus:opacity-100"
+                aria-label={`Delete watchlist ${wl.name}`}
               >
                 <Trash2 size={12} />
               </button>
@@ -328,8 +333,20 @@ export function WatchlistManager() {
                         return (
                           <tr
                             key={s}
-                            className="hover:bg-terminal-accent/5 cursor-pointer"
+                            className="cursor-pointer hover:bg-terminal-accent/5 focus-within:bg-terminal-accent/5"
+                            tabIndex={0}
                             onClick={() => navigate(`/equity/stocks?ticker=${s}`)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                navigate(`/equity/stocks?ticker=${s}`);
+                              }
+                              if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+                                event.preventDefault();
+                                const rect = event.currentTarget.getBoundingClientRect();
+                                setContextMenu({ symbol: s, x: rect.left + Math.min(rect.width / 2, 220), y: rect.bottom + 4 });
+                              }
+                            }}
                             onContextMenu={(event) => {
                               event.preventDefault();
                               event.stopPropagation();
@@ -344,8 +361,22 @@ export function WatchlistManager() {
                             <td className="px-3 py-2 text-right text-terminal-muted">{live?.volume?.toLocaleString() || '--'}</td>
                             <td className="px-3 py-2 text-center">
                               <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  setContextMenu({ symbol: s, x: rect.left, y: rect.bottom + 4 });
+                                }}
+                                className="mr-2 text-terminal-muted hover:text-terminal-accent"
+                                aria-label={`Open context menu for ${s}`}
+                              >
+                                <MoreHorizontal size={12} />
+                              </button>
+                              <button
+                                type="button"
                                 onClick={(e) => { e.stopPropagation(); removeSymbolMut.mutate({ id: activeWl.id, symbol: s }); }}
                                 className="text-terminal-muted hover:text-terminal-neg"
+                                aria-label={`Remove ${s} from watchlist`}
                               >
                                 <Trash2 size={12} />
                               </button>

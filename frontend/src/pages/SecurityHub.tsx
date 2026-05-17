@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams, useParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
 import {
@@ -11,6 +11,8 @@ import {
   fetchChartComparison,
   generateAdvancedReport,
 } from "../api/client";
+import { CatalystConvictionPanel } from "../components/dashboard/CatalystConvictionPanel";
+import { GuidedEmptyState } from "../components/dashboard/GuidedEmptyState";
 import { TradingChart } from "../components/chart/TradingChart";
 import { TimeAndSales } from "../components/market/TimeAndSales";
 import { InsiderStockDetail } from "../components/security/InsiderStockDetail";
@@ -100,6 +102,7 @@ function fmtPct(v: unknown) {
 }
 
 export function SecurityHubPage() {
+  const navigate = useNavigate();
   const { ticker: tickerParam } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedMarket = useSettingsStore((s) => s.selectedMarket);
@@ -371,6 +374,14 @@ export function SecurityHubPage() {
                 <MetricCell label="Beta" value={fmtNum(stock.beta)} />
               </div>
             </TerminalPanel>
+
+            <div className="xl:col-span-2">
+              <CatalystConvictionPanel
+                symbol={activeTicker}
+                market={selectedMarket}
+                onOpenScreener={() => navigate(`/equity/screener?symbol=${encodeURIComponent(activeTicker)}`)}
+              />
+            </div>
           </div>
         ) : null}
 
@@ -503,9 +514,15 @@ export function SecurityHubPage() {
                   ))}
                 </div>
               ) : (
-                <div className="rounded-sm border border-terminal-border bg-terminal-bg px-2 py-3 text-xs text-terminal-muted">
-                  {tickerNewsQuery.isLoading ? "Loading news..." : tickerNewsQuery.error ? "Failed to load news." : "No ticker-specific news available."}
-                </div>
+                <GuidedEmptyState
+                  title={tickerNewsQuery.isLoading ? "Loading news" : tickerNewsQuery.error ? "News feed degraded" : "No ticker news yet"}
+                  message="Create an alert or use the screener to put this symbol into an active research workflow."
+                  icon="NEWS"
+                  actions={[
+                    { label: "Alerts", href: "/equity/alerts" },
+                    { label: "Screener", href: "/equity/screener" },
+                  ]}
+                />
               )}
             </div>
           </TerminalPanel>

@@ -34,6 +34,7 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     _ensure_news_sentiment_columns()
     _ensure_backtest_columns()
+    _ensure_fundamentals_pit_columns()
     _ensure_alerts_columns()
 
 
@@ -76,6 +77,24 @@ def _ensure_backtest_columns() -> None:
                 if col in existing:
                     continue
                 conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {col} {ddl}"))
+
+
+def _ensure_fundamentals_pit_columns() -> None:
+    columns_to_add = {
+        "fiscal_period": "VARCHAR(32) NOT NULL DEFAULT ''",
+        "release_date_estimated": "BOOLEAN NOT NULL DEFAULT 0",
+        "source": "VARCHAR(32) NOT NULL DEFAULT ''",
+        "market": "VARCHAR(8) NOT NULL DEFAULT ''",
+    }
+    inspector = inspect(engine)
+    if not inspector.has_table("fundamentals_pit"):
+        return
+    existing = {str(column["name"]) for column in inspector.get_columns("fundamentals_pit")}
+    with engine.begin() as conn:
+        for col, ddl in columns_to_add.items():
+            if col in existing:
+                continue
+            conn.execute(text(f"ALTER TABLE fundamentals_pit ADD COLUMN {col} {ddl}"))
 
 
 def _ensure_alerts_columns() -> None:

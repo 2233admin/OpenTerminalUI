@@ -13,8 +13,9 @@ import {
   fetchPaperPortfolios,
   fetchPaperPositions,
   fetchWatchlist,
+  fetchRiskExposures,
+  fetchRiskSummary,
 } from "../api/client";
-import { fetchRiskExposures, fetchRiskSummary } from "../api/quantClient";
 import { TerminalShell, useTerminalShellWorkspace } from "../components/layout/TerminalShell";
 import { TerminalBadge } from "../components/terminal/TerminalBadge";
 import { TerminalPanel } from "../components/terminal/TerminalPanel";
@@ -22,6 +23,7 @@ import { getSymbolNews } from "../providers/newsProvider";
 import { useAlertsStore } from "../store/alertsStore";
 import { useSettingsStore } from "../store/settingsStore";
 import { useStockStore } from "../store/stockStore";
+import { getWorkspacePresetConfig } from "../workspace/presets";
 import type { AlertRule, AuditEvent, KillSwitch, OmsOrder, PaperOrder, PaperPerformance, PaperPortfolio, PaperPosition, WatchlistItem } from "../types";
 
 function EquityRightRail() {
@@ -172,17 +174,9 @@ function EquityRightRail() {
     return "Equity Workspace";
   })();
 
-  const quickLinks = [
-    { to: "/equity/stocks", label: "Chart" },
-    { to: "/equity/compare", label: "Compare" },
-    { to: "/equity/screener", label: "Screener" },
-    { to: "/equity/portfolio", label: "Portfolio" },
-    { to: "/equity/paper", label: "Paper" },
-    { to: "/equity/risk", label: "Risk" },
-    { to: "/equity/ops", label: "Ops" },
-  ];
-
-  const presetHintTitle = preset === "trader" ? "Trader Flow" : preset === "quant" ? "Quant Flow" : preset === "pm" ? "PM Flow" : preset === "risk" ? "Risk Flow" : "Ops Flow";
+  const presetConfig = getWorkspacePresetConfig(preset);
+  const quickLinks = presetConfig.quickLinks;
+  const presetHintTitle = `${presetConfig.label} Flow`;
 
   return (
     <aside className="hidden xl:flex h-full w-72 shrink-0 flex-col border-l border-terminal-border bg-terminal-panel">

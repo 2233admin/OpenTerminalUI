@@ -11,7 +11,7 @@ import {
   type HeatmapMarket,
   type HeatmapPeriod,
   type HeatmapSizeBy,
-} from "../api/heatmap";
+} from "../api/client";
 import { TerminalPanel } from "../components/terminal/TerminalPanel";
 
 type TooltipState = {

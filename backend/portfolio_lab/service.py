@@ -347,6 +347,8 @@ class PortfolioLabService:
         constraints = portfolio.constraints_json or {}
         max_weight = float(constraints.get("max_weight", 0.25) or 0.25)
         cash_buffer = float(constraints.get("cash_buffer", 0.0) or 0.0)
+        adv_by_asset = constraints.get("adv_by_asset") if isinstance(constraints.get("adv_by_asset"), dict) else {}
+        execution_model = constraints.get("execution_model") if isinstance(constraints.get("execution_model"), dict) else constraints
 
         engine_out = run_portfolio_engine(
             returns_df,
@@ -355,6 +357,8 @@ class PortfolioLabService:
             max_weight=max_weight,
             cash_buffer=cash_buffer,
             vol_window=int(constraints.get("vol_window", 20) or 20),
+            execution_model=execution_model,
+            adv_by_asset=adv_by_asset,
         )
 
         pr = pd.Series([float(item["return"]) for item in engine_out.returns_series], index=pd.to_datetime([item["date"] for item in engine_out.returns_series]))
@@ -372,6 +376,8 @@ class PortfolioLabService:
             benchmark_returns=benchmark_returns.to_list() if not benchmark_returns.empty else None,
         )
         metrics["turnover"] = float(np.mean([float(item.get("turnover", 0.0)) for item in engine_out.turnover_series])) if engine_out.turnover_series else 0.0
+        metrics["execution_model"] = str((execution_model or {}).get("model") or (execution_model or {}).get("type") or "fixed_bps")
+        metrics["execution_cost"] = float(sum(float(item.get("execution_cost_return", 0.0)) for item in engine_out.execution_series))
 
         peaks = equity.cummax()
         drawdown = (equity - peaks) / peaks.replace(0.0, np.nan)
@@ -400,6 +406,7 @@ class PortfolioLabService:
             "returns": engine_out.returns_series,
             "weights_over_time": engine_out.weights_over_time,
             "turnover_series": engine_out.turnover_series,
+            "execution_series": engine_out.execution_series,
             "contribution_series": engine_out.contribution_series,
             "rolling_sharpe_30": self._rolling(pr, 30),
             "rolling_sharpe_90": self._rolling(pr, 90),
@@ -533,6 +540,44 @@ class PortfolioLabService:
             }
             await cache.set(cache_key, payload, ttl=300)
             return payload
+        finally:
+            db.close()
+
+    async def leaderboard(self, sort_by: str = "sharpe", descending: bool = True, limit: int = 50) -> dict:
+        allowed = {"sharpe", "cagr", "max_drawdown", "turnover", "stability", "recency", "governance_state"}
+        sort_key = sort_by if sort_by in allowed else "sharpe"
+        db = next(get_db())
+        try:
+            rows = (
+                db.query(PortfolioRun, PortfolioDefinition, PortfolioRunMetrics)
+                .join(PortfolioDefinition, PortfolioRun.portfolio_id == PortfolioDefinition.id)
+                .outerjoin(PortfolioRunMetrics, PortfolioRunMetrics.run_id == PortfolioRun.id)
+                .order_by(PortfolioRun.started_at.desc())
+                .limit(max(limit * 4, limit))
+                .all()
+            )
+            items = []
+            for run, portfolio, metrics_row in rows:
+                metrics = metrics_row.metrics_json if metrics_row else {}
+                governance_state = "approved" if run.status == "succeeded" and not run.error else ("blocked" if run.status == "failed" else "pending")
+                items.append(
+                    {
+                        "run_id": run.id,
+                        "portfolio_id": portfolio.id,
+                        "name": portfolio.name,
+                        "status": run.status,
+                        "sharpe": float(metrics.get("sharpe", 0.0) or 0.0),
+                        "cagr": float(metrics.get("cagr", 0.0) or 0.0),
+                        "max_drawdown": float(metrics.get("max_drawdown", 0.0) or 0.0),
+                        "turnover": float(metrics.get("turnover", 0.0) or 0.0),
+                        "stability": float(metrics.get("return_stability_r2", metrics.get("stability", 0.0)) or 0.0),
+                        "recency": run.finished_at or run.started_at,
+                        "governance_state": governance_state,
+                    }
+                )
+            reverse = bool(descending)
+            items.sort(key=lambda item: item.get(sort_key) or "", reverse=reverse)
+            return {"items": items[:limit], "sort_by": sort_key, "descending": reverse}
         finally:
             db.close()
 

@@ -158,7 +158,7 @@ export function BacktestResults({ initialTickers }: Props) {
             </div>
             <div className="rounded border border-terminal-border bg-terminal-panel p-3">
               <div className="text-xs text-terminal-muted">Alpha</div>
-              <div className={`mt-1 text-sm font-semibold ${result.summary.alpha_total_return > 0 ? "text-terminal-pos" : "text-terminal-neg"}`}>
+              <div className={`mt-1 text-sm font-semibold ${(result.summary.alpha_total_return ?? 0) > 0 ? "text-terminal-pos" : "text-terminal-neg"}`}>
                 {formatPct((result.summary.alpha_total_return ?? 0) * 100)}
               </div>
             </div>
@@ -215,8 +215,8 @@ export function BacktestResults({ initialTickers }: Props) {
                       <tr key={idx} className="border-b border-terminal-border/50">
                         <td className="px-2 py-1">{h.rebalance_date}</td>
                         <td className="max-w-xs truncate px-2 py-1" title={h.holdings}>{h.holdings}</td>
-                        <td className="px-2 py-1 text-right">{formatPct(h.turnover * 100)}</td>
-                        <td className="px-2 py-1 text-right">{(h.cost_applied * 10000).toFixed(1)} bps</td>
+                        <td className="px-2 py-1 text-right">{formatPct((h.turnover ?? 0) * 100)}</td>
+                        <td className="px-2 py-1 text-right">{((h.cost_applied ?? 0) * 10000).toFixed(1)} bps</td>
                       </tr>
                     ))}
                   </tbody>

@@ -19,6 +19,40 @@ function getTicker(row: Record<string, unknown> | null): string {
   return String(row?.ticker || row?.symbol || "").toUpperCase();
 }
 
+function getMarket(row: Record<string, unknown>): string {
+  const raw = String(row.market || row.exchange || row.country_code || "").toUpperCase();
+  if (raw.includes("US") || raw.includes("NYSE") || raw.includes("NASDAQ") || raw.includes("AMEX")) return "US";
+  return "India";
+}
+
+function scoreValue(row: Record<string, unknown>, key: string): number {
+  const factorScores = row.factor_scores as Record<string, unknown> | undefined;
+  const scores = row.scores as Record<string, unknown> | undefined;
+  const raw = row[key] ?? factorScores?.[key] ?? scores?.[key];
+  const value = typeof raw === "object" && raw && "value" in raw ? Number((raw as { value?: unknown }).value) : Number(raw);
+  if (!Number.isFinite(value)) return 0;
+  return value > 1 ? value : value * 100;
+}
+
+function factorChips(row: Record<string, unknown>): string[] {
+  const explicit = row.factor_chips || row.chips;
+  if (Array.isArray(explicit)) return explicit.map(String).filter(Boolean);
+  return [
+    ["VALUE", scoreValue(row, "value")],
+    ["MOM", scoreValue(row, "momentum")],
+    ["QUALITY", scoreValue(row, "quality")],
+    ["LOW-VOL", scoreValue(row, "low_vol")],
+  ].filter(([, value]) => Number(value) >= 60).map(([label]) => String(label));
+}
+
+function whyRanked(row: Record<string, unknown>): string {
+  const explicit = row.why_ranked || row.why || row.explanation;
+  if (Array.isArray(explicit)) return explicit.map(String).join("; ");
+  if (explicit) return String(explicit);
+  const chips = factorChips(row);
+  return chips.length ? `Top drivers: ${chips.join(", ")}` : "Ranked by composite factor score and active screen filters.";
+}
+
 export function CompanyDetailDrawer() {
   const navigate = useNavigate();
   const setTicker = useStockStore((state) => state.setTicker);
@@ -44,7 +78,25 @@ export function CompanyDetailDrawer() {
   const openChart = () => {
     if (!ticker) return;
     setTicker(ticker);
-    navigate("/equity/chart-workstation");
+    navigate(`/equity/chart-workstation?symbol=${encodeURIComponent(ticker)}&source=screener`, { state: { ticker, screen: "screener", row: selectedRow } });
+  };
+
+  const openBacktest = () => {
+    if (!ticker) return;
+    setTicker(ticker);
+    navigate(`/backtesting?symbol=${encodeURIComponent(ticker)}&market=${encodeURIComponent(getMarket(selectedRow))}&source=screener`, { state: { ticker, market: getMarket(selectedRow), screen: "screener", row: selectedRow } });
+  };
+
+  const openCompare = () => {
+    if (!ticker) return;
+    setTicker(ticker);
+    navigate(`/equity/chart-workstation?symbol=${encodeURIComponent(ticker)}&compare=true&source=screener`, { state: { ticker, compare: true, screen: "screener", row: selectedRow } });
+  };
+
+  const openAlert = () => {
+    if (!ticker) return;
+    setTicker(ticker);
+    navigate(`/equity/alerts?symbol=${encodeURIComponent(ticker)}&source=screener`, { state: { ticker, screen: "screener", row: selectedRow } });
   };
 
   const addToWatchlist = async () => {
@@ -94,8 +146,10 @@ export function CompanyDetailDrawer() {
       <div className="grid grid-cols-2 gap-2">
         <TerminalButton variant="accent" onClick={openChart} disabled={!ticker}>Open Chart</TerminalButton>
         <TerminalButton variant="default" onClick={() => openSecurity("overview")} disabled={!ticker}>Security Hub</TerminalButton>
-        <TerminalButton variant="default" onClick={() => openSecurity("news")} disabled={!ticker}>News Flow</TerminalButton>
+        <TerminalButton variant="default" onClick={openBacktest} disabled={!ticker}>Backtest</TerminalButton>
+        <TerminalButton variant="default" onClick={openCompare} disabled={!ticker}>Compare</TerminalButton>
         <TerminalButton variant="default" onClick={() => void addToWatchlist()} disabled={!ticker}>Add Watchlist</TerminalButton>
+        <TerminalButton variant="default" onClick={openAlert} disabled={!ticker}>Create Alert</TerminalButton>
       </div>
 
       {actionMessage ? (
@@ -105,6 +159,14 @@ export function CompanyDetailDrawer() {
       <div className="rounded-sm border border-terminal-border bg-terminal-bg p-2">
         <div className="mb-1 text-[11px] uppercase tracking-wide text-terminal-muted">Price Trend</div>
         <SparklineCell values={Array.isArray(selectedRow.sparkline_price_1y) ? (selectedRow.sparkline_price_1y as number[]) : []} width={240} height={60} />
+      </div>
+
+      <div className="rounded-sm border border-terminal-border bg-terminal-bg p-2">
+        <div className="mb-1 text-[11px] uppercase tracking-wide text-terminal-muted">Signal Layer</div>
+        <div className="mb-2 flex flex-wrap gap-1">
+          {factorChips(selectedRow).map((chip) => <TerminalBadge key={chip} variant="neutral">{chip}</TerminalBadge>)}
+        </div>
+        <div className="text-xs text-terminal-muted">{whyRanked(selectedRow)}</div>
       </div>
 
       <div className="rounded-sm border border-terminal-border bg-terminal-bg p-2">

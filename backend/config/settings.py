@@ -130,12 +130,10 @@ def _normalize_sqlite_url(sqlite_url: str, base: Path | None = None) -> str:
 def get_settings() -> AppSettings:
     base = _workspace_root()
     default_sqlite = _default_sqlite_url(base)
-    settings_path = base / "config" / "settings.yaml"
-    legacy_path = base.parent / "config" / "settings.yaml"
+    settings_path = base / "backend" / "config" / "settings.yaml"
     payload: dict[str, Any] = {}
-    source = settings_path if settings_path.exists() else legacy_path
-    if source.exists():
-        payload = yaml.safe_load(source.read_text(encoding="utf-8")) or {}
+    if settings_path.exists():
+        payload = yaml.safe_load(settings_path.read_text(encoding="utf-8")) or {}
     app_cfg = payload.get("app", {}) if isinstance(payload, dict) else {}
     cache_cfg = payload.get("cache", {}) if isinstance(payload, dict) else {}
     env_cors = _parse_cors_env(

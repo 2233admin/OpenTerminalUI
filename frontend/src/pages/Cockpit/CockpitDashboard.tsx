@@ -8,11 +8,19 @@ import {
   fetchNewsSentimentSummary,
   fetchPortfolio,
   fetchPortfolioRiskMetrics,
+  fetchCockpitSummary,
+  fetchRiskSummary,
   type NewsLatestApiItem,
   type NewsSentimentMarketSummary,
   type NewsSentimentSummary,
 } from "../../api/client";
-import { fetchCockpitSummary, fetchRiskSummary } from "../../api/quantClient";
+import { fetchDashboardResults, type DashboardResults } from "../../api/intelligence";
+import { ExposureHeatmap } from "../../components/dashboard/ExposureHeatmap";
+import { GuidedEmptyState } from "../../components/dashboard/GuidedEmptyState";
+import { IntelligenceTimeline } from "../../components/dashboard/IntelligenceTimeline";
+import { ResultsSummaryCards } from "../../components/dashboard/ResultsSummaryCards";
+import { useTerminalShellWorkspace } from "../../components/layout/TerminalShell";
+import { SavedViewsControl } from "../../components/savedViews/SavedViewsControl";
 import {
   SentimentBadge,
   SentimentChart,
@@ -21,6 +29,8 @@ import {
   TerminalInput,
   TerminalPanel,
 } from "../../components/terminal";
+import { AiInsightCard } from "../../components/terminal/AiInsightCard";
+import { fetchCollectionBriefing } from "../../api/client";
 import {
   useAnalystConsensus,
   usePeerComparison,
@@ -33,6 +43,7 @@ import { useSettingsStore } from "../../store/settingsStore";
 import { useStockStore } from "../../store/stockStore";
 import type { ChartPoint, CorporateEvent, PortfolioResponse, PortfolioRiskMetrics } from "../../types";
 import { normalizeTicker } from "../../utils/ticker";
+import { getWorkspacePresetConfig } from "../../workspace/presets";
 
 type CockpitSummary = {
   portfolio_snapshot?: {
@@ -375,8 +386,12 @@ type DeskRoute = "security" | "chart" | "news" | "screener" | "portfolio" | "ris
 
 export function CockpitDashboard() {
   const navigate = useNavigate();
+  const { preset } = useTerminalShellWorkspace();
+  const presetConfig = getWorkspacePresetConfig(preset);
+  const showPanel = (panel: string) => presetConfig.cockpitPanels.includes(panel);
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedMarket = useSettingsStore((state) => state.selectedMarket);
+  const setSelectedCountry = useSettingsStore((state) => state.setSelectedCountry);
   const storeTicker = useStockStore((state) => state.ticker);
   const setTicker = useStockStore((state) => state.setTicker);
   const loadTicker = useStockStore((state) => state.load);
@@ -439,6 +454,11 @@ export function CockpitDashboard() {
     queryKey: ["cockpit", "risk-summary", focusTicker],
     queryFn: async () => (await fetchRiskSummary(focusTicker)) as Record<string, unknown>,
     enabled: Boolean(focusTicker),
+    staleTime: 60_000,
+  });
+  const resultsQuery = useQuery<DashboardResults>({
+    queryKey: ["cockpit", "validated-results"],
+    queryFn: () => fetchDashboardResults(4),
     staleTime: 60_000,
   });
 
@@ -582,6 +602,74 @@ export function CockpitDashboard() {
     (newsQuery.error instanceof Error && newsQuery.error.message) ||
     (portfolioQuery.error instanceof Error && portfolioQuery.error.message) ||
     null;
+  const priorityCards = useMemo(
+    () =>
+      [
+        {
+          rank: 1,
+          title: "Portfolio Risk",
+          value: focusVar95 != null ? `${fmtNumber(focusVar95, 2)} VaR95` : `Beta ${fmtNumber(focusBeta, 2)}`,
+          detail: portfolioRiskQuery.data?.max_drawdown != null ? `Max DD ${fmtPct(portfolioRiskQuery.data.max_drawdown, 2, true)}` : "Open risk dashboard",
+          tone: "text-terminal-warn",
+          action: () => openDeskRoute("risk"),
+        },
+        {
+          rank: 2,
+          title: "Alerts",
+          value: primaryError ? "Degraded" : "Monitor",
+          detail: primaryError || "Review triggered alerts and create new guardrails.",
+          tone: primaryError ? "text-terminal-neg" : "text-terminal-accent",
+          action: () => navigate("/equity/alerts"),
+        },
+        {
+          rank: 3,
+          title: "Catalysts",
+          value: `${deskEvents.length} queued`,
+          detail: deskEvents[0]?.title || "No dated catalysts in scope.",
+          tone: deskEvents.length ? "text-terminal-accent" : "text-terminal-muted",
+          action: () => openDeskRoute("security"),
+        },
+        {
+          rank: 4,
+          title: "News Shock",
+          value: headlines[0]?.sentiment?.label || marketToneBadge.label,
+          detail: headlines[0]?.title || "Add symbols to seed the news shock monitor.",
+          tone: String(headlines[0]?.sentiment?.label || "").toLowerCase().includes("bear") ? "text-terminal-neg" : "text-terminal-pos",
+          action: () => openDeskRoute("news"),
+        },
+        {
+          rank: 5,
+          title: "Top Movers",
+          value: focusTicker,
+          detail: `Last move ${fmtPct(changePct)} with ${fmtCurrency(currentPrice, currency, 2)} last price.`,
+          tone: changePct != null && changePct < 0 ? "text-terminal-neg" : "text-terminal-pos",
+          action: () => openDeskRoute("chart"),
+        },
+        {
+          rank: 6,
+          title: "Model Signals",
+          value: `${resultsQuery.data?.modelLab.length ?? 0} validated`,
+          detail: resultsQuery.data?.modelLab[0]?.name || resultsQuery.data?.modelLab[0]?.strategy || "Run Model Lab to publish signals.",
+          tone: "text-terminal-accent",
+          action: () => navigate("/backtesting/model-lab"),
+        },
+      ],
+    [
+      changePct,
+      currency,
+      currentPrice,
+      deskEvents,
+      focusBeta,
+      focusTicker,
+      focusVar95,
+      headlines,
+      marketToneBadge.label,
+      navigate,
+      portfolioRiskQuery.data?.max_drawdown,
+      primaryError,
+      resultsQuery.data?.modelLab,
+    ],
+  );
 
   return (
     <div className="h-full min-h-0 overflow-auto p-2">
@@ -604,6 +692,28 @@ export function CockpitDashboard() {
                 </p>
               </div>
               <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCountry("US")}
+                  className={`rounded-sm border px-2 py-1 text-[11px] uppercase tracking-wide ${
+                    selectedMarket === "NASDAQ" || selectedMarket === "NYSE"
+                      ? "border-terminal-accent bg-terminal-accent/15 text-terminal-accent"
+                      : "border-terminal-border bg-terminal-bg/60 text-terminal-muted hover:text-terminal-text"
+                  }`}
+                >
+                  US
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCountry("IN")}
+                  className={`rounded-sm border px-2 py-1 text-[11px] uppercase tracking-wide ${
+                    selectedMarket === "NSE" || selectedMarket === "BSE"
+                      ? "border-terminal-accent bg-terminal-accent/15 text-terminal-accent"
+                      : "border-terminal-border bg-terminal-bg/60 text-terminal-muted hover:text-terminal-text"
+                  }`}
+                >
+                  India
+                </button>
                 {quickFocusSymbols.map((symbol) => (
                   <button
                     key={symbol}
@@ -650,10 +760,29 @@ export function CockpitDashboard() {
                 <TerminalButton size="md" variant="ghost" loading={refreshing} onClick={() => void refreshDesk()}>
                   Refresh Desk
                 </TerminalButton>
+                <SavedViewsControl
+                  pageLabel="Cockpit"
+                  capture={() => ({
+                    filters: { selectedMarket, focusTicker },
+                    activeTabs: { preset },
+                    selectedTicker: focusTicker,
+                    chartLayout: { cockpitPanels: presetConfig.cockpitPanels },
+                  })}
+                />
               </div>
             </div>
           </div>
         </section>
+
+        {portfolioSymbols.length > 0 && (
+          <div className="grid grid-cols-1">
+            <AiInsightCard
+              title="AI Portfolio Briefing"
+              description={`Gemma-powered analysis of themes and posture for ${portfolioSymbols.length} active holdings`}
+              fetcher={() => fetchCollectionBriefing(portfolioSymbols, "portfolio")}
+            />
+          </div>
+        )}
 
         {primaryError ? (
           <div className="rounded-sm border border-terminal-neg bg-terminal-neg/10 px-3 py-2 text-sm text-terminal-neg">
@@ -685,9 +814,38 @@ export function CockpitDashboard() {
           />
         </section>
 
+        <section className="grid gap-2 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+          {showPanel("priority") ? (
+          <TerminalPanel title="Cockpit Priority Stack" subtitle="Ranked daily brief across risk, alerts, catalysts, shocks, movers, and model signals">
+            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+              {priorityCards.map((card) => (
+                <button
+                  key={card.rank}
+                  type="button"
+                  onClick={card.action}
+                  className="rounded-sm border border-terminal-border bg-terminal-bg px-3 py-2 text-left hover:border-terminal-accent"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] uppercase tracking-[0.14em] text-terminal-muted">P{card.rank} / {card.title}</span>
+                    <span className="text-[10px] text-terminal-accent">OPEN</span>
+                  </div>
+                  <div className={`mt-2 truncate text-sm font-semibold ${card.tone}`}>{card.value}</div>
+                  <div className="mt-1 line-clamp-2 text-[11px] text-terminal-muted">{card.detail}</div>
+                </button>
+              ))}
+            </div>
+          </TerminalPanel>
+          ) : null}
+          {showPanel("results") ? <ResultsSummaryCards
+            results={resultsQuery.data}
+            loading={resultsQuery.isFetching}
+            onRunBacktest={() => navigate("/backtesting")}
+          /> : null}
+        </section>
+
         <section className="grid gap-2 xl:grid-cols-[1.15fr_1fr_0.9fr]">
           <div className="grid gap-2">
-            <TerminalPanel
+            {showPanel("focus") ? <TerminalPanel
               title="Focus Security"
               subtitle={stock?.company_name || "Desk focus snapshot"}
               actions={
@@ -744,9 +902,9 @@ export function CockpitDashboard() {
                   </div>
                 </div>
               </div>
-            </TerminalPanel>
+            </TerminalPanel> : null}
 
-            <TerminalPanel title="Peers and Coverage Queue" subtitle="Benchmarking metrics and source mix" bodyClassName="space-y-3">
+            {showPanel("focus") ? <TerminalPanel title="Peers and Coverage Queue" subtitle="Benchmarking metrics and source mix" bodyClassName="space-y-3">
               <div className="rounded-sm border border-terminal-border bg-terminal-bg">
                 <table className="min-w-full text-xs">
                   <thead>
@@ -768,7 +926,7 @@ export function CockpitDashboard() {
                     ))}
                     {peerMetrics.length === 0 ? (
                       <tr>
-                        <td className="px-2 py-3 text-terminal-muted" colSpan={4}>Peer comparison metrics are not available for the current focus ticker.</td>
+                        <td className="px-2 py-3 text-terminal-muted" colSpan={4}>Open Security Hub peers or run the screener to build comparable coverage.</td>
                       </tr>
                     ) : null}
                   </tbody>
@@ -789,7 +947,17 @@ export function CockpitDashboard() {
                         <span className="text-[11px] text-terminal-muted">{fmtCurrency(item.current_value, currency, 0)}</span>
                       </button>
                     ))}
-                    {topHoldings.length === 0 ? <div className="text-[11px] text-terminal-muted">Portfolio is empty.</div> : null}
+                    {topHoldings.length === 0 ? (
+                      <GuidedEmptyState
+                        title="Create coverage"
+                        message="Add a watchlist or portfolio holding to build a coverage queue for the desk."
+                        icon="WL"
+                        actions={[
+                          { label: "Watchlist", onClick: () => navigate("/equity/watchlist") },
+                          { label: "Portfolio", onClick: () => navigate("/equity/portfolio") },
+                        ]}
+                      />
+                    ) : null}
                   </div>
                 </div>
                 <div className="rounded-sm border border-terminal-border bg-terminal-bg p-3">
@@ -798,7 +966,7 @@ export function CockpitDashboard() {
                     {topSources.map((source) => (
                       <TerminalBadge key={source.source} variant="info">{source.source} {source.count}</TerminalBadge>
                     ))}
-                    {topSources.length === 0 ? <span className="text-[11px] text-terminal-muted">No source distribution available.</span> : null}
+                    {topSources.length === 0 ? <span className="text-[11px] text-terminal-muted">Open News to seed source distribution.</span> : null}
                   </div>
                   <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
                     <MetricCard label="Bullish" value={fmtPct(sentimentSummaryQuery.data?.distribution?.bullish_pct, 1, true)} tone="text-terminal-pos" />
@@ -807,11 +975,11 @@ export function CockpitDashboard() {
                   </div>
                 </div>
               </div>
-            </TerminalPanel>
+            </TerminalPanel> : null}
           </div>
 
           <div className="grid gap-2">
-            <TerminalPanel title="Headline Monitor" subtitle={`${headlines.length} focus headlines`} bodyClassName="space-y-2">
+            {showPanel("news") ? <TerminalPanel title="Headline Monitor" subtitle={`${headlines.length} focus headlines`} bodyClassName="space-y-2">
               {headlines.slice(0, 8).map((headline) => {
                 const external = /^https?:\/\//i.test(headline.url);
                 return (
@@ -832,10 +1000,20 @@ export function CockpitDashboard() {
                   </a>
                 );
               })}
-              {headlines.length === 0 ? <div className="rounded-sm border border-terminal-border bg-terminal-bg px-3 py-6 text-sm text-terminal-muted">No ticker headlines or cockpit wire fallback are available.</div> : null}
-            </TerminalPanel>
+              {headlines.length === 0 ? (
+                <GuidedEmptyState
+                  title="No shock headlines"
+                  message="Add alerts or open the news desk to bring ticker-specific shock headlines into the cockpit."
+                  icon="WIRE"
+                  actions={[
+                    { label: "Add Alert", onClick: () => navigate("/equity/alerts") },
+                    { label: "Open News", onClick: () => openDeskRoute("news") },
+                  ]}
+                />
+              ) : null}
+            </TerminalPanel> : null}
 
-            <TerminalPanel
+            {showPanel("sentiment") ? <TerminalPanel
               title="Sentiment Pulse"
               subtitle={sentimentQuery.data ? `${sentimentQuery.data.total_articles} articles over ${sentimentQuery.data.period_days} days` : "News sentiment trend"}
               bodyClassName="space-y-3"
@@ -851,11 +1029,11 @@ export function CockpitDashboard() {
                 <MetricCard label="Bullish %" value={fmtPct(sentimentQuery.data?.bullish_pct, 1, true)} tone="text-terminal-pos" />
                 <MetricCard label="Bearish %" value={fmtPct(sentimentQuery.data?.bearish_pct, 1, true)} tone="text-terminal-neg" />
               </div>
-            </TerminalPanel>
+            </TerminalPanel> : null}
           </div>
 
           <div className="grid gap-2">
-            <TerminalPanel title="Portfolio Monitor" subtitle="Largest active holdings" bodyClassName="space-y-2">
+            {showPanel("portfolio") ? <TerminalPanel title="Portfolio Monitor" subtitle="Largest active holdings" bodyClassName="space-y-2">
               <div className="rounded-sm border border-terminal-border bg-terminal-bg">
                 <table className="min-w-full text-xs">
                   <thead>
@@ -883,15 +1061,15 @@ export function CockpitDashboard() {
                     ))}
                     {topHoldings.length === 0 ? (
                       <tr>
-                        <td className="px-2 py-3 text-terminal-muted" colSpan={4}>No holdings loaded for the desk.</td>
+                        <td className="px-2 py-3 text-terminal-muted" colSpan={4}>Add holdings from Portfolio HQ to activate risk and exposure monitoring.</td>
                       </tr>
                     ) : null}
                   </tbody>
                 </table>
               </div>
-            </TerminalPanel>
+            </TerminalPanel> : null}
 
-            <TerminalPanel title="Risk Monitor" subtitle="Ticker and portfolio overlay" bodyClassName="space-y-3">
+            {showPanel("risk") ? <TerminalPanel title="Risk Monitor" subtitle="Ticker and portfolio overlay" bodyClassName="space-y-3">
               <div className="grid gap-2 sm:grid-cols-2">
                 <MetricCard label="Focus Beta" value={fmtNumber(focusBeta, 2)} />
                 <MetricCard label="VaR 95" value={fmtNumber(focusVar95, 2)} />
@@ -906,9 +1084,9 @@ export function CockpitDashboard() {
                   <div><div className="text-terminal-muted">Info Ratio</div><div className="ot-type-data text-terminal-text">{fmtNumber(portfolioRiskQuery.data?.information_ratio, 2)}</div></div>
                 </div>
               </div>
-            </TerminalPanel>
+            </TerminalPanel> : null}
 
-            <TerminalPanel title="Catalyst Agenda" subtitle="Focus, portfolio, and cockpit events" bodyClassName="space-y-2">
+            {showPanel("events") ? <TerminalPanel title="Catalyst Agenda" subtitle="Focus, portfolio, and cockpit events" bodyClassName="space-y-2">
               {deskEvents.map((event) => (
                 <div key={event.key} className="rounded-sm border border-terminal-border bg-terminal-bg px-3 py-2">
                   <div className="flex flex-wrap items-center gap-2">
@@ -922,9 +1100,40 @@ export function CockpitDashboard() {
                   <div className="mt-1 text-[11px] text-terminal-muted">{event.eventType} | impact {event.impact}</div>
                 </div>
               ))}
-              {deskEvents.length === 0 ? <div className="rounded-sm border border-terminal-border bg-terminal-bg px-3 py-6 text-sm text-terminal-muted">No near-term catalysts are available for the current desk scope.</div> : null}
-            </TerminalPanel>
+              {deskEvents.length === 0 ? (
+                <GuidedEmptyState
+                  title="No catalysts queued"
+                  message="Open Security Hub or add earnings/events coverage so catalysts appear in the daily agenda."
+                  icon="CAT"
+                  actions={[
+                    { label: "Security Hub", onClick: () => openDeskRoute("security") },
+                    { label: "Open Screener", onClick: () => openDeskRoute("screener") },
+                  ]}
+                />
+              ) : null}
+            </TerminalPanel> : null}
           </div>
+        </section>
+
+        <section className="grid gap-2 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+          {showPanel("heatmap") ? <ExposureHeatmap
+            title="Cockpit Exposure Heatmap"
+            market={selectedMarket}
+            items={portfolio.items || []}
+            correlation={riskSummaryQuery.data}
+            defaultMode="sector"
+            onCreateWatchlist={() => navigate("/equity/watchlist")}
+            onOpenRisk={() => openDeskRoute("risk")}
+          /> : null}
+          {showPanel("timeline") ? <IntelligenceTimeline
+            market={selectedMarket}
+            symbol={focusTicker}
+            symbols={portfolioSymbols}
+            limit={12}
+            title="Cockpit Intelligence Timeline"
+            onAddAlert={() => navigate("/equity/alerts")}
+            onOpenScreener={() => openDeskRoute("screener")}
+          /> : null}
         </section>
       </div>
     </div>

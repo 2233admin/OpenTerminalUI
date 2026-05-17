@@ -201,7 +201,7 @@ describe("HomePage mission-control revamp", () => {
     expect(screen.getByText("RBI signals steady liquidity support for domestic markets")).toBeInTheDocument();
     expect(screen.getByText("Bullish 87%")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Workstation. EQUITY desk access" }));
+    fireEvent.click(screen.getByRole("button", { name: /Workstation\. WORKSPACE desk access/i }));
     expect(navigateSpy).toHaveBeenCalledWith("/equity/chart-workstation");
   }, 10000);
 

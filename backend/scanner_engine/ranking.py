@@ -9,7 +9,15 @@ def default_score(features: dict[str, Any]) -> float:
     breakout_strength = float(features.get("breakout_strength") or 0.0)
     rvol = float(features.get("rvol") or 1.0)
     atr_pct = float(features.get("atr_pct") or 0.0)
-    return trend_alignment + breakout_strength + math.log(max(rvol, 1e-6)) - (0.2 * atr_pct)
+    fno = features.get("fno_signals") if isinstance(features.get("fno_signals"), dict) else {}
+    fno_bonus = 0.0
+    if fno.get("available"):
+        directional_bias = float(fno.get("directional_bias") or 0.0)
+        buildup_confidence = float(fno.get("oi_buildup_confidence") or 0.0)
+        iv_percentile = float(fno.get("iv_percentile") or 0.0)
+        iv_penalty = 0.15 if iv_percentile >= 85.0 else 0.0
+        fno_bonus = directional_bias * (0.35 + min(max(buildup_confidence, 0.0), 1.0) * 0.15) - iv_penalty
+    return trend_alignment + breakout_strength + math.log(max(rvol, 1e-6)) - (0.2 * atr_pct) + fno_bonus
 
 
 def rank_results(results: list[dict[str, Any]]) -> list[dict[str, Any]]:

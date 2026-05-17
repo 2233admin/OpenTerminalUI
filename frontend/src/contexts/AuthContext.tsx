@@ -1,8 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 
-import { setAccessTokenGetter } from "../api/client";
-import { setAccessTokenGetter as setQuantAccessTokenGetter } from "../api/quantClient";
+import { setAccessTokenGetter, setRefreshHandler } from "../api/client";
 import { setAccessTokenGetter as setFnoAccessTokenGetter } from "../fno/api/fnoApi";
 
 export type AuthRole = "admin" | "trader" | "viewer";
@@ -119,8 +118,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem(REFRESH_TOKEN_KEY);
   }, [clearRefreshTimer]);
 
-  const performRefresh = useCallback(async () => {
-    if (!refreshToken) return;
+  const performRefresh = useCallback(async (): Promise<string | null> => {
+    if (!refreshToken) return null;
     try {
       const { data } = await authApi.post<{ access_token: string; refresh_token: string; token_type: string }>("/auth/refresh", {
         refresh_token: refreshToken,
@@ -130,8 +129,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(parseJwtUser(data.access_token));
       localStorage.setItem(ACCESS_TOKEN_KEY, data.access_token);
       localStorage.setItem(REFRESH_TOKEN_KEY, data.refresh_token);
+      return data.access_token;
     } catch {
       logout();
+      return null;
     }
   }, [authApi, logout, refreshToken]);
 
@@ -198,16 +199,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setAccessTokenGetter(() => accessToken);
-    setQuantAccessTokenGetter(() => accessToken);
     setFnoAccessTokenGetter(() => accessToken);
+    setRefreshHandler(() => performRefresh());
     scheduleRefresh(accessToken);
     return () => {
       setAccessTokenGetter(null);
-      setQuantAccessTokenGetter(null);
       setFnoAccessTokenGetter(null);
+      setRefreshHandler(null);
       clearRefreshTimer();
     };
-  }, [accessToken, clearRefreshTimer, scheduleRefresh]);
+  }, [accessToken, clearRefreshTimer, scheduleRefresh, performRefresh]);
 
   const login = useCallback(
     async (email: string, password: string) => {

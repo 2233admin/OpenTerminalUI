@@ -21,7 +21,7 @@ import {
   fetchStressScenarioHistory,
   runStressMonteCarlo,
   runStressScenario,
-} from "../../api/quantClient";
+} from "../../api/client";
 import { TerminalBadge } from "../terminal/TerminalBadge";
 import { TerminalButton } from "../terminal/TerminalButton";
 import { TerminalPanel } from "../terminal/TerminalPanel";

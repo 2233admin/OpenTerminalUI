@@ -1,7 +1,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { createStrategyBlend, listStrategyBlends } from "../api/portfolioLab";
+import { createStrategyBlend, listStrategyBlends } from "../api/client";
 import { TerminalPanel } from "../components/terminal/TerminalPanel";
 
 const STRATEGY_OPTIONS = [

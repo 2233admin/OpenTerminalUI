@@ -17,6 +17,7 @@ from .parser import ParsedQuery, parse_query
 class RunConfig:
     query: str
     universe: str = "nse_500"
+    market: str = "IN"
     sort_by: str | None = None
     sort_order: str = "desc"
     limit: int = 100
@@ -32,16 +33,39 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
-def _load_universe_symbols(universe: str) -> list[str]:
+def _load_universe_symbols(universe: str, market: str | None = None) -> list[str]:
     root = Path(__file__).resolve().parents[2]
+    backend_root = Path(__file__).resolve().parents[1]
+    market_key = (market or "").strip().upper()
+    universe_key = universe.strip().lower()
+    if market_key == "US" and universe_key in {"nse_500", "nifty_500", "all_nse", "nifty_50"}:
+        universe_key = "us_all"
+    if market_key == "IN" and universe_key in {"sp_500", "nasdaq_100", "us_all"}:
+        universe_key = "nse_500"
     mapping = {
         "nse_500": root / "data" / "nse_equity_symbols_eq.txt",
         "all_nse": root / "data" / "nse_equity_symbols_all.txt",
         "nifty_50": root / "data" / "sample_tickers.txt",
         "nifty_500": root / "data" / "nse_equity_symbols_eq.txt",
+        "sp_500": backend_root / "data" / "us_sp500_symbols.txt",
+        "nasdaq_100": backend_root / "data" / "us_nasdaq100_symbols.txt",
+        "us_all": backend_root / "data" / "us_all_symbols.txt",
     }
-    path = mapping.get(universe, mapping["nse_500"])
+    if universe_key == "us_all" and not mapping["us_all"].exists():
+        symbols: set[str] = set()
+        for file_path in [mapping["sp_500"], mapping["nasdaq_100"]]:
+            if file_path.exists():
+                symbols.update(
+                    line.strip().upper()
+                    for line in file_path.read_text(encoding="utf-8").splitlines()
+                    if line.strip()
+                )
+        if symbols:
+            return sorted(symbols)[:1500]
+    path = mapping.get(universe_key, mapping["nse_500"])
     if path is None or not path.exists():
+        if market_key == "US" or universe_key in {"sp_500", "nasdaq_100", "us_all"}:
+            return ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META"]
         return ["RELIANCE", "TCS", "INFY", "HDFCBANK", "ICICIBANK", "ITC"]
     symbols = [line.strip().upper() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
     return symbols[:1500]
@@ -160,8 +184,8 @@ class ScreenerEngine:
     def __init__(self) -> None:
         self._cache: dict[str, dict[str, Any]] = {}
 
-    def _load_data(self, universe: str) -> pd.DataFrame:
-        symbols = _load_universe_symbols(universe)
+    def _load_data(self, universe: str, market: str = "IN") -> pd.DataFrame:
+        symbols = _load_universe_symbols(universe, market=market)
         raw = load_screener_df(symbols)
         return _enrich_columns(raw)
 
@@ -219,11 +243,12 @@ class ScreenerEngine:
         parsed_order = config.sort_order or parsed.sort_order
         parsed_limit = config.limit or parsed.limit or 100
 
-        cache_key = f"{config.universe}|{parsed.normalized}|{parsed_sort}|{parsed_order}|{parsed_limit}|{config.offset}|{','.join(config.include_scores or [])}"
+        market = (config.market or "IN").upper()
+        cache_key = f"{market}|{config.universe}|{parsed.normalized}|{parsed_sort}|{parsed_order}|{parsed_limit}|{config.offset}|{','.join(config.include_scores or [])}"
         if cache_key in self._cache:
             return self._cache[cache_key]
 
-        data = self._load_data(config.universe)
+        data = self._load_data(config.universe, market=market)
         filtered = self._apply_filter(data, parsed)
         sorted_df = self._sort(filtered, parsed_sort, parsed_order)
         total = int(len(sorted_df))

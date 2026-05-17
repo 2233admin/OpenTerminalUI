@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import type { LinkGroup } from "../../contexts/SymbolLinkContext";
+import { getWorkspacePresetConfig, readWorkspacePreset } from "../../workspace/presets";
 
 export type LaunchpadPanelType =
   | "chart"
@@ -155,7 +156,16 @@ function makePanel(id: string, type: LaunchpadPanelType, title: string, x: numbe
 }
 
 function defaultPresets(): LaunchpadLayoutPreset[] {
+  const config = getWorkspacePresetConfig(readWorkspacePreset());
+  const roleLayout: LaunchpadLayoutPreset = {
+    id: config.launchpadLayoutId,
+    name: `${config.label} Default`,
+    panels: config.launchpadPanels.map((panel, index) =>
+      makePanel(`${config.launchpadLayoutId}-${index}`, panel.type as LaunchpadPanelType, panel.title, panel.x, panel.y, panel.w, panel.h, panel.symbol),
+    ),
+  };
   return [
+    roleLayout,
     {
       id: "trading-desk",
       name: "Trading Desk",

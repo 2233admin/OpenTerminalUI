@@ -279,13 +279,13 @@ export function DOMLadder({ symbol, market, className = "", onSnapshot }: Props)
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-sm border border-terminal-border bg-terminal-bg">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-sm border border-terminal-border bg-terminal-bg">
           <div className="grid grid-cols-[minmax(0,1fr)_120px_minmax(0,1fr)] gap-2 border-b border-terminal-border bg-terminal-panel px-3 py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-terminal-muted">
             <span className="text-right">Bid Size</span>
             <span className="text-center">Price</span>
             <span>Ask Size</span>
           </div>
-          <div ref={scrollRef} className="h-[880px] overflow-y-auto" data-testid="dom-scroll-region">
+          <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto lg:max-h-[calc(100dvh-18rem)]" data-testid="dom-scroll-region">
             {depthQuery.isLoading && !rows.length ? (
               <div className="flex h-full items-center justify-center px-3 py-10 text-xs text-terminal-muted">Loading DOM ladder...</div>
             ) : null}

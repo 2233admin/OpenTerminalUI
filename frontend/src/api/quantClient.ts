@@ -1,23 +1,4 @@
-import axios from "axios";
-
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || "/api",
-  timeout: 30000,
-});
-
-let accessTokenGetter: (() => string | null) | null = null;
-export function setAccessTokenGetter(getter: (() => string | null) | null): void {
-  accessTokenGetter = getter;
-}
-
-api.interceptors.request.use((config) => {
-  const token = accessTokenGetter ? accessTokenGetter() : null;
-  if (token) {
-    config.headers = config.headers || {};
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+import { api } from "./base";
 
 // Cockpit
 export async function fetchCockpitSummary() {

@@ -2,8 +2,12 @@ import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { getModelExperiment, runModelExperiment, runModelParamSweep, runModelWalkForward } from "../api/modelLab";
+import { getModelExperiment, runModelExperiment, runModelParamSweep, runModelWalkForward } from "../api/client";
 import { TerminalPanel } from "../components/terminal/TerminalPanel";
+
+function isCompletedStatus(status: string): boolean {
+  return status === "succeeded" || status === "completed" || status === "done";
+}
 
 export function ModelLabExperimentDetailPage() {
   const { id = "" } = useParams();
@@ -29,6 +33,9 @@ export function ModelLabExperimentDetailPage() {
   });
 
   const newestRunId = useMemo(() => detailQuery.data?.runs?.[0]?.id || null, [detailQuery.data]);
+  const openTearSheet = (runId: string) => {
+    window.open(`/api/reports/tearsheets/model-lab/${encodeURIComponent(runId)}?download=false`, "_blank", "noopener,noreferrer");
+  };
 
   const runWalkForwardMutation = useMutation({
     mutationFn: () => runModelWalkForward(id, { train_window_days: wfTrain, test_window_days: wfTest }),
@@ -76,7 +83,12 @@ export function ModelLabExperimentDetailPage() {
                     <div>{run.id}</div>
                     <div className="text-terminal-muted">{run.status}</div>
                   </div>
-                  <Link className="rounded border border-terminal-border px-2 py-1" to={`/backtesting/model-lab/runs/${run.id}`}>Report</Link>
+                  <div className="flex gap-1">
+                    {isCompletedStatus(run.status) && (
+                      <button type="button" className="rounded border border-terminal-border px-2 py-1" onClick={() => openTearSheet(run.id)}>Tear-sheet</button>
+                    )}
+                    <Link className="rounded border border-terminal-border px-2 py-1" to={`/backtesting/model-lab/runs/${run.id}`}>Report</Link>
+                  </div>
                 </div>
               ))}
             </div>

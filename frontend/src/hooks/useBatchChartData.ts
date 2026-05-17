@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchChartsBatchWithMeta, type ChartBatchSource } from "../api/client";
 import type { ChartResponse } from "../types";
-import type { ChartSlot, ChartSlotTimeframe } from "../store/chartWorkstationStore";
+import type { ChartSlot } from "../store/chartWorkstationStore";
+import {
+  BATCH_TIMEFRAME_MAP,
+  buildChartBatchRequestKey,
+  supportsExtendedHoursRequest,
+} from "../shared/chart/chartBatchRequest";
 
 type BatchRecord = {
   data: ChartResponse | null;
@@ -17,29 +22,14 @@ type Result = {
 
 type BatchChartPayload = ChartResponse & { error?: string };
 
-const TF_MAP: Record<ChartSlotTimeframe, string> = {
-  "1m": "1m",
-  "5m": "5m",
-  "15m": "15m",
-  "1h": "60m",
-  "1D": "1d",
-  "1W": "1wk",
-  "1M": "1mo",
-};
-
-function supportsExtendedHours(slot: ChartSlot): boolean {
-  return slot.market === "US" && (slot.timeframe === "1m" || slot.timeframe === "5m" || slot.timeframe === "15m" || slot.timeframe === "1h");
-}
-
-function requestKey(slot: ChartSlot) {
-  const market = slot.market === "IN" ? "NSE" : "NASDAQ";
-  const extended = slot.extendedHours.enabled && supportsExtendedHours(slot);
-  return `${market}:${slot.ticker ?? ""}|${TF_MAP[slot.timeframe]}|1y|ext=${extended}`;
-}
-
 export function useBatchChartData(slots: ChartSlot[]): Result {
   const [byRequestKey, setByRequestKey] = useState<Record<string, BatchRecord>>({});
   const [source, setSource] = useState<ChartBatchSource | "idle">("idle");
+
+  const requestSignature = useMemo(
+    () => slots.map((slot) => buildChartBatchRequestKey(slot)).join("||"),
+    [slots],
+  );
 
   const requestItems = useMemo(
     () =>
@@ -47,14 +37,14 @@ export function useBatchChartData(slots: ChartSlot[]): Result {
         .filter((slot) => Boolean(slot.ticker))
         .map((slot) => ({
           slotId: slot.id,
-          key: requestKey(slot),
+          key: buildChartBatchRequestKey(slot),
           symbol: slot.ticker!.toUpperCase(),
-          interval: TF_MAP[slot.timeframe],
+          interval: BATCH_TIMEFRAME_MAP[slot.timeframe],
           range: "1y",
           market: slot.market === "IN" ? "NSE" : "NASDAQ",
-          extended: slot.extendedHours.enabled && supportsExtendedHours(slot),
+          extended: slot.extendedHours.enabled && supportsExtendedHoursRequest(slot),
         })),
-    [slots],
+    [requestSignature],
   );
 
   useEffect(() => {
@@ -136,7 +126,7 @@ export function useBatchChartData(slots: ChartSlot[]): Result {
         result[slot.id] = { data: null, loading: false, error: null };
         continue;
       }
-      result[slot.id] = byRequestKey[requestKey(slot)] ?? { data: null, loading: true, error: null };
+      result[slot.id] = byRequestKey[buildChartBatchRequestKey(slot)] ?? { data: null, loading: true, error: null };
     }
     return result;
   }, [byRequestKey, slots]);

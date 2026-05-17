@@ -1,4 +1,4 @@
-const CACHE_NAME = "otui-static-v3";
+const CACHE_NAME = "otui-static-v4";
 const ASSETS = ["/manifest.json", "/favicon.png", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -15,6 +15,11 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const request = event.request;
   const url = new URL(request.url);
+
+  // Never intercept/cache API or health calls — data must always be fresh.
+  // Caching these would serve stale data after mutations (e.g. adding a holding).
+  if (url.pathname.startsWith("/api/") || url.pathname === "/health") return;
+
   const isNavigation = request.mode === "navigate";
   const isHtml = request.headers.get("accept")?.includes("text/html");
 

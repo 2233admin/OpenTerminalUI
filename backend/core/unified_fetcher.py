@@ -421,6 +421,45 @@ class UnifiedFetcher:
             "fmp_cashflow": f_cf if not isinstance(f_cf, Exception) else [],
         }
 
+    async def fetch_pit_fundamentals_records(self, ticker: str) -> list[dict[str, Any]]:
+        from backend.services.pit_fundamentals_service import (
+            _records_from_fmp_rows,
+            _records_from_yahoo_timeseries,
+        )
+
+        symbol = ticker.strip().upper()
+        cls = await market_classifier.classify(symbol)
+        market = cls.country_code
+        ysym = await market_classifier.yfinance_symbol(symbol)
+        records: list[dict[str, Any]] = []
+
+        try:
+            yahoo_payload = await self.yahoo.get_fundamentals_timeseries(ysym)
+            for record in _records_from_yahoo_timeseries(symbol, yahoo_payload, market):
+                records.append(record.__dict__)
+        except Exception as exc:
+            logger.debug("Yahoo PIT fundamentals failed for %s: %s", symbol, exc)
+
+        fmp_symbol = ysym if market == "IN" else symbol
+        try:
+            fmp_results = await asyncio.gather(
+                self.fmp.get_income_statement(fmp_symbol, period="annual", limit=20),
+                self.fmp.get_income_statement(fmp_symbol, period="quarter", limit=40),
+                self.fmp.get_balance_sheet(fmp_symbol, period="annual", limit=20),
+                self.fmp.get_balance_sheet(fmp_symbol, period="quarter", limit=40),
+                self.fmp.get_cash_flow(fmp_symbol, period="annual", limit=20),
+                self.fmp.get_cash_flow(fmp_symbol, period="quarter", limit=40),
+                return_exceptions=True,
+            )
+            for rows in fmp_results:
+                if isinstance(rows, list):
+                    for record in _records_from_fmp_rows(symbol, rows, "fmp", market):
+                        records.append(record.__dict__)
+        except Exception as exc:
+            logger.debug("FMP PIT fundamentals failed for %s: %s", symbol, exc)
+
+        return records
+
     async def fetch_shareholding(self, ticker: str) -> Dict[str, Any]:
         symbol = ticker.strip().upper()
         raw: Dict[str, Any] = {}

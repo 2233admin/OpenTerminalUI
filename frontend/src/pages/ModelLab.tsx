@@ -3,17 +3,44 @@ import { Link } from "react-router-dom";
 import { useLocation } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { createModelExperiment, listModelExperiments } from "../api/modelLab";
+import { createModelExperiment, listModelExperiments } from "../api/client";
+import { api } from "../api/base";
 import { TerminalPanel } from "../components/terminal/TerminalPanel";
 
 const DEFAULT_JSON = '{"tickers":["RELIANCE"]}';
 const DEFAULT_PARAMS = '{"short_window":20,"long_window":50}';
+type LeaderboardSortKey = "sharpe" | "cagr" | "max_drawdown" | "turnover" | "stability" | "recency" | "governance";
+type LeaderboardRow = {
+  run_id?: string;
+  experiment_id?: string;
+  name?: string;
+  model_key?: string;
+  market?: string;
+  sharpe?: number;
+  cagr?: number;
+  max_drawdown?: number;
+  turnover?: number;
+  stability?: number;
+  recency?: number;
+  governance?: number;
+};
+
+function metric(row: LeaderboardRow, key: LeaderboardSortKey): number {
+  return Number(row[key] ?? 0);
+}
+
+function pct(value: unknown): string {
+  const n = Number(value);
+  return Number.isFinite(n) ? `${(n * 100).toFixed(2)}%` : "-";
+}
 
 export function ModelLabPage() {
   const location = useLocation();
   const queryClient = useQueryClient();
   const [tag, setTag] = useState("");
   const [model, setModel] = useState("");
+  const [leaderboardMarket, setLeaderboardMarket] = useState<"US" | "India">("India");
+  const [leaderboardSort, setLeaderboardSort] = useState<LeaderboardSortKey>("sharpe");
 
   const [name, setName] = useState("SMA Baseline");
   const [description, setDescription] = useState("Baseline trend model");
@@ -30,6 +57,16 @@ export function ModelLabPage() {
   const experimentsQuery = useQuery({
     queryKey: ["model-lab", "experiments", tag, model],
     queryFn: () => listModelExperiments({ tag: tag || undefined, model: model || undefined }),
+  });
+  const leaderboardQuery = useQuery({
+    queryKey: ["model-lab", "leaderboard", leaderboardMarket],
+    queryFn: async () => {
+      const { data } = await api.get<{ items?: LeaderboardRow[]; rows?: LeaderboardRow[] } | LeaderboardRow[]>("/model-lab/leaderboard", {
+        params: { market: leaderboardMarket },
+      });
+      if (Array.isArray(data)) return data;
+      return data.items || data.rows || [];
+    },
   });
 
   const createMutation = useMutation({
@@ -66,6 +103,10 @@ export function ModelLabPage() {
       ).sort((a, b) => a.localeCompare(b)),
     [allExperiments],
   );
+  const sortedLeaderboard = useMemo(() => {
+    const direction = leaderboardSort === "max_drawdown" || leaderboardSort === "turnover" ? 1 : -1;
+    return [...(leaderboardQuery.data || [])].sort((a, b) => direction * (metric(a, leaderboardSort) - metric(b, leaderboardSort)));
+  }, [leaderboardQuery.data, leaderboardSort]);
 
   const onCreate = (event: FormEvent) => {
     event.preventDefault();
@@ -221,6 +262,53 @@ export function ModelLabPage() {
           </form>
         </TerminalPanel>
       </div>
+
+      <TerminalPanel title="Model Leaderboard" subtitle={`${leaderboardMarket} market / sortable research quality`}>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="flex gap-1">
+            {(["India", "US"] as const).map((marketOpt) => (
+              <button key={marketOpt} type="button" className={`rounded border px-2 py-1 ${leaderboardMarket === marketOpt ? "border-terminal-accent bg-terminal-accent/10 text-terminal-accent" : "border-terminal-border text-terminal-muted"}`} onClick={() => setLeaderboardMarket(marketOpt)}>
+                {marketOpt}
+              </button>
+            ))}
+          </div>
+          <select className="rounded border border-terminal-border bg-terminal-bg px-2 py-1" value={leaderboardSort} onChange={(event) => setLeaderboardSort(event.target.value as LeaderboardSortKey)}>
+            <option value="sharpe">Sharpe</option>
+            <option value="cagr">CAGR</option>
+            <option value="max_drawdown">Max drawdown</option>
+            <option value="turnover">Turnover</option>
+            <option value="stability">Stability</option>
+            <option value="recency">Recency</option>
+            <option value="governance">Governance</option>
+          </select>
+        </div>
+        <div className="overflow-auto">
+          <table className="min-w-full text-[11px]">
+            <thead>
+              <tr className="border-b border-terminal-border/50 text-terminal-muted">
+                {["Run", "Model", "Market", "Sharpe", "CAGR", "MaxDD", "Turnover", "Stability", "Recency", "Governance"].map((header) => <th key={header} className="px-2 py-1 text-left">{header}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {sortedLeaderboard.map((row, index) => (
+                <tr key={`${row.run_id || row.experiment_id || row.name}-${index}`} className="border-b border-terminal-border/30">
+                  <td className="px-2 py-1">{row.run_id ? <Link className="text-terminal-accent" to={`/backtesting/model-lab/runs/${row.run_id}`}>{row.run_id}</Link> : "-"}</td>
+                  <td className="px-2 py-1">{row.name || row.model_key || "-"}</td>
+                  <td className="px-2 py-1">{row.market || leaderboardMarket}</td>
+                  <td className="px-2 py-1 text-right">{Number(row.sharpe || 0).toFixed(2)}</td>
+                  <td className="px-2 py-1 text-right">{pct(row.cagr)}</td>
+                  <td className="px-2 py-1 text-right text-terminal-neg">{pct(row.max_drawdown)}</td>
+                  <td className="px-2 py-1 text-right">{Number(row.turnover || 0).toFixed(3)}</td>
+                  <td className="px-2 py-1 text-right">{Number(row.stability || 0).toFixed(2)}</td>
+                  <td className="px-2 py-1 text-right">{Number(row.recency || 0).toFixed(2)}</td>
+                  <td className="px-2 py-1 text-right">{Number(row.governance || 0).toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!sortedLeaderboard.length && <div className="p-3 text-xs text-terminal-muted">{leaderboardQuery.isLoading ? "Loading leaderboard..." : "No leaderboard rows."}</div>}
+        </div>
+      </TerminalPanel>
     </div>
   );
 }

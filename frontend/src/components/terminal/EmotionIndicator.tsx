@@ -117,6 +117,7 @@ export function EmotionIndicator({ ticker, data, isLoading, isError }: Props) {
 
   const dominant = emotionMeta(data.dominant_emotion);
   const engineLabel = data.engine === "lmstudio" ? `Gemma · ${data.model}` : "Lexical fallback";
+  const articles = data.articles ?? [];
 
   return (
     <section className="rounded border border-terminal-border bg-terminal-panel p-3">
@@ -141,7 +142,7 @@ export function EmotionIndicator({ ticker, data, isLoading, isError }: Props) {
 
       <div className="mt-2 flex flex-wrap items-center gap-4">
         <div className="shrink-0">
-          <EmotionGauge index={data.emotion_index} label={data.emotion_index_label} />
+          <EmotionGauge index={data.emotion_index ?? 0} label={data.emotion_index_label ?? "Neutral"} />
         </div>
         <div className="min-w-[150px] flex-1 space-y-2">
           <div className="flex items-center gap-2">
@@ -158,14 +159,15 @@ export function EmotionIndicator({ ticker, data, isLoading, isError }: Props) {
           <div className="grid grid-cols-2 gap-1.5 text-[11px]">
             <div className="rounded border border-terminal-border px-2 py-1">
               <div className="text-terminal-muted">Sentiment</div>
-              <div className="font-semibold" style={{ color: sentimentColor(data.sentiment_label) }}>
-                {data.sentiment_label} ({data.sentiment_score >= 0 ? "+" : ""}
-                {data.sentiment_score.toFixed(2)})
+              <div className="font-semibold" style={{ color: sentimentColor(data.sentiment_label ?? "neutral") }}>
+                {data.sentiment_label ?? "Neutral"} ({ (data.sentiment_score ?? 0) >= 0 ? "+" : ""}
+                {(data.sentiment_score ?? 0).toFixed(2)})
               </div>
-            </div>
-            <div className="rounded border border-terminal-border px-2 py-1">
-              <div className="text-terminal-muted">Confidence</div>
-              <div className="font-semibold">{(data.confidence * 100).toFixed(0)}%</div>
+              </div>
+              <div className="flex items-center gap-2 text-[11px]">
+              <div className="w-16 text-terminal-muted">Confidence:</div>
+              <div className="font-semibold">{((data.confidence ?? 0) * 100).toFixed(0)}%</div>
+
             </div>
           </div>
         </div>
@@ -197,17 +199,17 @@ export function EmotionIndicator({ ticker, data, isLoading, isError }: Props) {
         </p>
       )}
 
-      {data.articles.length > 0 && (
+      {articles.length > 0 && (
         <div className="mt-2">
           <button
             className="rounded border border-terminal-border px-2 py-1 text-[11px] text-terminal-muted"
             onClick={() => setShowArticles((v) => !v)}
           >
-            {showArticles ? "Hide" : "Show"} per-article breakdown ({data.articles.length})
+            {showArticles ? "Hide" : "Show"} per-article breakdown ({articles.length})
           </button>
           {showArticles && (
             <div className="mt-2 space-y-1">
-              {data.articles.map((article, idx) => {
+              {articles.map((article, idx) => {
                 const meta = emotionMeta(article.emotion);
                 return (
                   <div key={`${article.url}-${idx}`} className="rounded border border-terminal-border bg-terminal-bg p-2 text-[11px]">

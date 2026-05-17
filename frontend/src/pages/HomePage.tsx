@@ -10,6 +10,11 @@ import {
   fetchWatchlist,
   type NewsLatestApiItem,
 } from "../api/client";
+import { fetchDashboardResults, type DashboardResults } from "../api/intelligence";
+import { ExposureHeatmap } from "../components/dashboard/ExposureHeatmap";
+import { GuidedEmptyState } from "../components/dashboard/GuidedEmptyState";
+import { IntelligenceTimeline } from "../components/dashboard/IntelligenceTimeline";
+import { ResultsSummaryCards } from "../components/dashboard/ResultsSummaryCards";
 import { LiveClockStrip } from "../components/home/LiveClockStrip";
 import { MarketHeatStrip, type MarketHeatStripItem } from "../components/home/MarketHeatStrip";
 import { MetricCard } from "../components/home/MetricCard";
@@ -17,10 +22,14 @@ import { PortfolioMiniChart } from "../components/home/PortfolioMiniChart";
 import { ProfileCompletionRing } from "../components/home/ProfileCompletionRing";
 import { QuickNavGrid, type QuickNavSection } from "../components/home/QuickNavGrid";
 import { SystemHealthBar, type SystemHealthItem } from "../components/home/SystemHealthBar";
+import { AiInsightCard } from "../components/terminal/AiInsightCard";
 import { TerminalShell } from "../components/layout/TerminalShell";
 import { useAuth } from "../contexts/AuthContext";
 import { fetchChainSummary } from "../fno/api/fnoApi";
+import { fetchCollectionBriefing } from "../api/client";
 import { useSettingsStore } from "../store/settingsStore";
+import type { PortfolioItem } from "../types";
+import { getWorkspacePresetConfig, readWorkspacePreset } from "../workspace/presets";
 
 type MarketRow = {
   symbol: string;
@@ -56,60 +65,85 @@ const NEWS_LIMIT = 15;
 
 const NAV_CARD_SECTIONS: Array<{ title: string; cards: NavCard[] }> = [
   {
-    title: "EQUITY",
+    title: "MARKETS",
     cards: [
-      { label: "Market", to: "/equity/stocks", badge: "F1" },
+      { label: "Equity", to: "/equity/stocks", badge: "M1" },
+      { label: "F&O", to: "/fno", badge: "FO" },
+      { label: "Crypto", to: "/equity/crypto", badge: "CR" },
       { label: "Economics", to: "/equity/economics", badge: "EC" },
       { label: "Yield Curve", to: "/equity/yield-curve", badge: "YC" },
       { label: "Rotation", to: "/equity/sector-rotation", badge: "ROT" },
-      { label: "Security Hub", to: "/equity/security", badge: "SH" },
-      { label: "Compare", to: "/equity/compare", badge: "CMP" },
-      { label: "Launchpad", to: "/equity/launchpad", badge: "LP" },
-      { label: "Workstation", to: "/equity/chart-workstation", badge: "WS" },
-      { label: "Crypto", to: "/equity/crypto", badge: "CR" },
-      { label: "Screener", to: "/equity/screener", badge: "F2" },
-      { label: "Portfolio", to: "/equity/portfolio", badge: "F3" },
-      { label: "Paper", to: "/equity/paper", badge: "PP" },
-      { label: "Watchlist", to: "/equity/watchlist", badge: "F4" },
+      { label: "Heatmap", to: "/equity/heatmap", badge: "HM" },
     ],
   },
   {
-    title: "F&O",
+    title: "DERIVATIVES",
     cards: [
-      { label: "Option Chain", to: "/fno", badge: "OP" },
+      { label: "Option Chain", to: "/fno", badge: "OC" },
       { label: "Greeks", to: "/fno/greeks", badge: "GR" },
+      { label: "Futures", to: "/fno/futures", badge: "FUT" },
       { label: "OI Analysis", to: "/fno/oi", badge: "OI" },
+      { label: "Strategy", to: "/fno/strategy", badge: "STR" },
       { label: "PCR", to: "/fno/pcr", badge: "PCR" },
-      { label: "Heatmap", to: "/fno/heatmap", badge: "HM" },
+      { label: "Options Flow", to: "/fno/flow", badge: "FLW" },
+      { label: "F&O Heatmap", to: "/fno/heatmap", badge: "FHM" },
       { label: "Expiry", to: "/fno/expiry", badge: "EXP" },
     ],
   },
   {
-    title: "BACK TEST",
+    title: "RESEARCH",
+    cards: [
+      { label: "Security Hub", to: "/equity/security", badge: "SH" },
+      { label: "Screener", to: "/equity/screener", badge: "F2" },
+      { label: "Saved Views", to: "/equity/saved-views", badge: "SV" },
+      { label: "Factors", to: "/equity/factors", badge: "FAC" },
+      { label: "Intelligence", to: "/equity/intelligence-timeline", badge: "INT" },
+      { label: "Hotlists", to: "/equity/hotlists", badge: "HOT" },
+      { label: "Insider", to: "/equity/insider", badge: "INS" },
+      { label: "Compare", to: "/equity/compare", badge: "CMP" },
+    ],
+  },
+  {
+    title: "LABS",
     cards: [
       { label: "Backtesting", to: "/backtesting", badge: "F9" },
       { label: "Model Lab", to: "/backtesting/model-lab", badge: "ML" },
-      { label: "Model Compare", to: "/backtesting/model-lab/compare", badge: "MC" },
       { label: "Portfolio Lab", to: "/equity/portfolio/lab", badge: "PL" },
-      { label: "Portfolio Blends", to: "/equity/portfolio/lab/blends", badge: "BL" },
+      { label: "Model Compare", to: "/backtesting/model-lab/compare", badge: "MC" },
+      { label: "Blends", to: "/equity/portfolio/lab/blends", badge: "BL" },
+    ],
+  },
+  {
+    title: "PORTFOLIO",
+    cards: [
+      { label: "Holdings", to: "/equity/portfolio", badge: "F3" },
+      { label: "Risk Desk", to: "/equity/risk", badge: "RSK" },
+      { label: "Correlation", to: "/equity/correlation", badge: "COR" },
+      { label: "Paper", to: "/equity/paper", badge: "PP" },
+      { label: "Dividends", to: "/equity/dividends", badge: "DIV" },
+      { label: "Mutual Funds", to: "/equity/mutual-funds", badge: "MF" },
+      { label: "ETF Analytics", to: "/equity/etf-analytics", badge: "ETF" },
     ],
   },
   {
     title: "INTEL",
     cards: [
-      { label: "Watchlist", to: "/equity/watchlist", badge: "WL" },
       { label: "News", to: "/equity/news", badge: "NW" },
       { label: "Alerts", to: "/equity/alerts", badge: "AL" },
-      { label: "Plugins", to: "/equity/plugins", badge: "PLG" },
-      { label: "About", to: "/equity/stocks/about", badge: "AB" },
+      { label: "Watchlist", to: "/equity/watchlist", badge: "F4" },
+      { label: "Relative Str", to: "/equity/rs", badge: "RS" },
+      { label: "Data Quality", to: "/equity/data-quality", badge: "DQ" },
     ],
   },
   {
-    title: "SETTINGS",
+    title: "WORKSPACE",
     cards: [
+      { label: "Launchpad", to: "/equity/launchpad", badge: "LP" },
+      { label: "Workstation", to: "/equity/chart-workstation", badge: "WS" },
+      { label: "Cockpit", to: "/equity/cockpit", badge: "CP" },
+      { label: "Plugins", to: "/equity/plugins", badge: "PLG" },
       { label: "Settings", to: "/equity/settings", badge: "F6" },
       { label: "Account", to: "/account", badge: "ACC" },
-      { label: "Cockpit", to: "/equity/cockpit", badge: "CP" },
     ],
   },
 ];
@@ -215,6 +249,10 @@ export function HomePage() {
   const [marketRows, setMarketRows] = useState<MarketRow[]>(INITIAL_MARKET_ROWS);
   const [newsLog, setNewsLog] = useState<NewsLatestApiItem[]>([]);
   const [snapshot, setSnapshot] = useState<DashboardSnapshot>(EMPTY_SNAPSHOT);
+  const [portfolioItems, setPortfolioItems] = useState<PortfolioItem[]>([]);
+  const [dashboardResults, setDashboardResults] = useState<DashboardResults | null>(null);
+  const [activePreset, setActivePreset] = useState(readWorkspacePreset);
+  const [resultsLoading, setResultsLoading] = useState(false);
   const [performancePoints, setPerformancePoints] = useState<number[]>(FALLBACK_PERFORMANCE_POINTS);
   const [performanceBenchmarkPoints, setPerformanceBenchmarkPoints] = useState<number[]>([]);
   const [performanceLabels, setPerformanceLabels] = useState<string[]>([]);
@@ -236,6 +274,7 @@ export function HomePage() {
 
     if (portfolioRes.status === "fulfilled") {
       const data = portfolioRes.value;
+      setPortfolioItems(data.items || []);
       const derivedValue = data.summary.total_value ?? data.items.reduce((acc, row) => acc + Number(row.current_value ?? 0), 0);
       next.equityValue = Number.isFinite(derivedValue) ? derivedValue : null;
       next.equityCost = Number(data.summary.total_cost ?? 0);
@@ -314,6 +353,24 @@ export function HomePage() {
     setPerformanceLabels(nextPerformanceLabels);
     next.updatedAt = Date.now();
     setSnapshot(next);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    setResultsLoading(true);
+    fetchDashboardResults(4)
+      .then((data) => {
+        if (active) setDashboardResults(data);
+      })
+      .catch(() => {
+        if (active) setDashboardResults({ modelLab: [], portfolioLab: [] });
+      })
+      .finally(() => {
+        if (active) setResultsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -457,20 +514,40 @@ export function HomePage() {
     [marketRows, selectedHeatId],
   );
 
+  useEffect(() => {
+    const onStorage = () => setActivePreset(readWorkspacePreset());
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("ot:preset-change", onStorage);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("ot:preset-change", onStorage);
+    };
+  }, []);
+
+  const presetConfig = getWorkspacePresetConfig(activePreset);
+  const showHomeSection = useCallback((section: string) => presetConfig.homeSections.includes(section), [presetConfig.homeSections]);
+
   const launchSections = useMemo<QuickNavSection[]>(
-    () =>
-      NAV_CARD_SECTIONS.map((section) => ({
+    () => {
+      const preferred = new Set(presetConfig.quickLinks.map((link) => link.to));
+      return NAV_CARD_SECTIONS.map((section) => ({
         id: slugify(section.title),
         title: section.title,
-        items: section.cards.map((card) => ({
+        // Show ALL nav cards — the workspace preset only reorders (preferred first),
+        // it must never hide features from the launcher.
+        items: section.cards
+          .slice()
+          .sort((a, b) => Number(preferred.has(b.to)) - Number(preferred.has(a.to)))
+          .map((card) => ({
           id: `${slugify(section.title)}-${slugify(card.label)}`,
           label: card.label,
           shortcut: card.badge,
           description: `${section.title} desk access`,
           onSelect: () => navigate(card.to),
         })),
-      })),
-    [navigate],
+      })).filter((section) => section.items.length > 0);
+    },
+    [navigate, presetConfig.quickLinks],
   );
 
   const updatedLabel = snapshot.updatedAt
@@ -550,9 +627,9 @@ export function HomePage() {
               <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                 <div className="space-y-2">
                   <p className="ot-type-panel-title uppercase tracking-[0.18em] text-terminal-accent">Mission Control</p>
-                  <h1 className="text-2xl font-semibold uppercase tracking-[0.12em] text-terminal-text">Home Dashboard</h1>
+                  <h1 className="text-2xl font-semibold uppercase tracking-[0.12em] text-terminal-text">{presetConfig.landing.headline}</h1>
                   <p className="max-w-3xl text-sm text-terminal-muted">
-                    Bloomberg-dense market command surface with live pulse, portfolio intelligence, and fast launch paths into the terminal.
+                    {presetConfig.landing.description}
                   </p>
                   <div className="flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.12em] text-terminal-muted">
                     <span className="rounded-sm border border-terminal-border px-2 py-1">
@@ -560,6 +637,9 @@ export function HomePage() {
                     </span>
                     <span className="rounded-sm border border-terminal-border px-2 py-1">
                       Market {selectedMarket}
+                    </span>
+                    <span className="rounded-sm border border-terminal-accent/60 px-2 py-1 text-terminal-accent">
+                      Preset {presetConfig.label}
                     </span>
                     <span className="rounded-sm border border-terminal-border px-2 py-1">
                       Currency {displayCurrency}
@@ -579,6 +659,13 @@ export function HomePage() {
                       onClick={() => navigate("/equity/portfolio")}
                     >
                       Portfolio HQ
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-sm border border-terminal-accent px-3 py-1.5 text-[11px] uppercase tracking-[0.12em] text-terminal-accent hover:bg-terminal-accent/10"
+                      onClick={() => navigate(presetConfig.landing.primaryRoute)}
+                    >
+                      {presetConfig.landing.primaryLabel}
                     </button>
                     <button
                       type="button"
@@ -609,7 +696,17 @@ export function HomePage() {
               </div>
             </section>
 
+            <div className="grid grid-cols-1">
+              <AiInsightCard
+                title="AI Market Outlook"
+                description="Gemma-synthesized assessment of global market themes and regime"
+                fetcher={() => fetchCollectionBriefing(MARKET_PULSE_SYMBOLS, "global markets")}
+              />
+            </div>
+
+            {showHomeSection("portfolio") || showHomeSection("health") || showHomeSection("news") ? (
             <section className="grid gap-3 xl:grid-cols-[minmax(0,1.85fr)_minmax(0,1fr)]" aria-label="Portfolio HQ">
+              {showHomeSection("portfolio") ? (
               <div className="rounded-sm border border-terminal-border bg-terminal-panel/80 p-3">
                 <div className="flex flex-col gap-3 border-b border-terminal-border pb-3 lg:flex-row lg:items-start lg:justify-between">
                   <div>
@@ -755,8 +852,11 @@ export function HomePage() {
                   />
                 </div>
               </div>
+              ) : null}
 
+              {showHomeSection("health") || showHomeSection("news") ? (
               <div className="space-y-3">
+                {showHomeSection("health") ? (
                 <section className="rounded-sm border border-terminal-border bg-terminal-panel/80 p-3" aria-label="System Health">
                   <div className="mb-3">
                     <h2 className="ot-type-panel-title uppercase tracking-[0.14em] text-terminal-accent">System Health</h2>
@@ -778,7 +878,9 @@ export function HomePage() {
                     </div>
                   </div>
                 </section>
+                ) : null}
 
+                {showHomeSection("news") ? (
                 <section className="rounded-sm border border-terminal-border bg-terminal-panel/80 p-3" aria-label="Intel Wire">
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                     <div>
@@ -831,14 +933,52 @@ export function HomePage() {
                       ))}
                     </ol>
                   ) : (
-                    <div className="rounded-sm border border-terminal-border bg-terminal-bg/40 px-3 py-4 text-sm text-terminal-muted">
-                      News feed is online but no headlines have populated yet.
-                    </div>
+                    <GuidedEmptyState
+                      title="Start the news radar"
+                      message="Create a watchlist or open the news desk so the home wire has symbols and headlines to prioritize."
+                      icon="NEWS"
+                      actions={[
+                        { label: "Create Watchlist", onClick: () => navigate("/equity/watchlist") },
+                        { label: "Open News", onClick: () => navigate("/equity/news") },
+                      ]}
+                    />
                   )}
                 </section>
+                ) : null}
               </div>
+              ) : null}
             </section>
+            ) : null}
 
+            {showHomeSection("results") || showHomeSection("heatmap") || showHomeSection("timeline") ? (
+            <section className="grid gap-3 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]" aria-label="Dashboard Intelligence">
+              <div className="space-y-3">
+                {showHomeSection("results") ? <ResultsSummaryCards
+                  results={dashboardResults}
+                  loading={resultsLoading}
+                  onRunBacktest={() => navigate("/backtesting")}
+                /> : null}
+                {showHomeSection("heatmap") ? <ExposureHeatmap
+                  title="Portfolio Exposure Heatmap"
+                  market={selectedMarket}
+                  items={portfolioItems}
+                  defaultMode="sector"
+                  onCreateWatchlist={() => navigate("/equity/watchlist")}
+                  onOpenRisk={() => navigate("/equity/risk")}
+                /> : null}
+              </div>
+              {showHomeSection("timeline") ? <IntelligenceTimeline
+                market={selectedMarket}
+                symbols={portfolioItems.map((item) => item.ticker)}
+                limit={10}
+                title="Home Intelligence Timeline"
+                onAddAlert={() => navigate("/equity/alerts")}
+                onOpenScreener={() => navigate("/equity/screener")}
+              /> : null}
+            </section>
+            ) : null}
+
+            {showHomeSection("launch") ? (
             <section className="rounded-sm border border-terminal-border bg-terminal-panel/80 p-3" aria-label="Launch Matrix">
               <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                 <div>
@@ -866,6 +1006,7 @@ export function HomePage() {
               </div>
               <QuickNavGrid ariaLabel="Launch matrix" sections={launchSections} columnCount={4} />
             </section>
+            ) : null}
           </main>
         ) : null}
       </div>

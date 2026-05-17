@@ -39,6 +39,7 @@ import { shouldDefaultExtendedHoursOn } from "../shared/chart/candlePresentation
 import { fetchChartData } from "../services/chartDataService";
 import type { ChartPoint } from "../types";
 import { useStockStore } from "../store/stockStore";
+import { SavedViewsControl } from "../components/savedViews/SavedViewsControl";
 import {
   LEGACY_WORKSTATION_STORE_KEY,
   WORKSTATION_BOUNDARY_SUMMARY,
@@ -2308,7 +2309,16 @@ export function ChartWorkstationPage() {
             onSaveCurrentTemplate={handleSaveCurrentTemplate}
             onDrillInto={drillInto}
           />
-          <div className="mt-2 flex items-center justify-end">
+          <div className="mt-2 flex items-center justify-end gap-2">
+            <SavedViewsControl
+              pageLabel="Chart Workstation"
+              capture={() => ({
+                filters: { compareConfig, linkSettings, rangePresets },
+                activeTabs: { activeWorkspaceTabId },
+                chartLayout: { gridTemplate, slots, slotLinkGroups, workspaceTabs },
+                selectedTicker: activeSlot?.ticker ?? undefined,
+              })}
+            />
             <button
               type="button"
               className="rounded border border-terminal-border px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-terminal-muted hover:border-terminal-accent hover:text-terminal-accent"
@@ -2408,15 +2418,10 @@ export function ChartWorkstationPage() {
         {scriptPanelOpen ? (
           <div
             ref={scriptPanelRef}
-            className="absolute bottom-4 right-4 z-40 resize overflow-hidden rounded border border-terminal-border bg-terminal-panel shadow-2xl"
-            style={{
-              width: `${scriptPanelSize.width}px`,
-              height: `${scriptPanelSize.height}px`,
-              minWidth: "520px",
-              minHeight: "420px",
-              maxWidth: "96vw",
-              maxHeight: "85vh",
-            }}
+            className="fixed inset-0 z-40 overflow-hidden border border-terminal-border bg-terminal-panel shadow-2xl md:inset-4 md:rounded lg:absolute lg:inset-auto lg:bottom-4 lg:right-4 lg:h-[min(78dvh,48rem)] lg:w-[min(72rem,calc(100vw-2rem))] lg:resize"
+            role="dialog"
+            aria-modal="true"
+            aria-label="OpenScript IDE"
           >
             <PanelFrame as="div" className="flex h-full min-h-0 flex-col bg-terminal-panel">
               <PanelHeader
@@ -2432,8 +2437,8 @@ export function ChartWorkstationPage() {
                   </button>
                 }
               />
-              <PanelBody className="flex min-h-0 flex-1 p-0">
-                <div className="min-h-0 w-[280px] shrink-0 border-r border-terminal-border">
+              <PanelBody className="flex min-h-0 flex-1 flex-col p-0 lg:flex-row">
+                <div className="min-h-0 max-h-[32dvh] shrink-0 border-b border-terminal-border lg:max-h-none lg:w-[18rem] lg:border-b-0 lg:border-r">
                   <ScriptLibrary
                     scripts={scriptScripts}
                     selectedScriptId={scriptSelectedId}

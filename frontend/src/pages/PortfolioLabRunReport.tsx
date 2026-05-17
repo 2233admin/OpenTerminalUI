@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
-import { getPortfolioRunReport } from "../api/portfolioLab";
+import { getPortfolioRunReport } from "../api/client";
 import { TerminalPanel } from "../components/terminal/TerminalPanel";
 
 function pct(value: number | undefined): string {
@@ -69,12 +69,18 @@ export function PortfolioLabRunReportPage() {
     return rows;
   }, [reportQuery.data]);
 
+  const openTearSheet = () => {
+    if (!runId) return;
+    window.open(`/api/reports/tearsheets/portfolio-lab/${encodeURIComponent(runId)}?download=false`, "_blank", "noopener,noreferrer");
+  };
+
   return (
     <div className="space-y-3 p-3">
       <TerminalPanel title="Portfolio Lab / Report" subtitle={runId}>
         <div className="flex items-center justify-between text-xs">
           <div>Status: <span className="text-terminal-accent">{reportQuery.data?.status || "loading"}</span></div>
           <div className="flex gap-2">
+            {reportQuery.data?.status === "succeeded" && <button type="button" className="rounded border border-terminal-border px-2 py-1" onClick={openTearSheet}>Tear-sheet</button>}
             {reportQuery.data?.portfolio_id && <Link className="rounded border border-terminal-border px-2 py-1" to={`/equity/portfolio/lab/portfolios/${reportQuery.data.portfolio_id}`}>Portfolio</Link>}
             <Link className="rounded border border-terminal-border px-2 py-1" to="/equity/portfolio/lab">All Portfolios</Link>
           </div>

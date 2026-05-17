@@ -35,6 +35,7 @@ def compute_ratios(row: dict[str, Any]) -> dict[str, Any]:
     out["net_debt"] = (float(debt) - float(cash)) if debt is not None and cash is not None else None
     out["debt_to_market_cap"] = _safe_div(debt, mcap)
     out["earnings_yield"] = _safe_div(1.0, out["pe"])
+    out["fcf_yield_proxy"] = _safe_div(row.get("profit_margin"), out["pe"])
 
     roe = row.get("return_on_equity")
     roa = row.get("return_on_assets")

@@ -27,6 +27,7 @@ import { TerminalSelect } from "../terminal/TerminalSelect";
 import { HotKeyPanelFloat } from "../trading/HotKeyPanelFloat";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
 import { ShortcutOverlay } from "../common/ShortcutOverlay";
+import { WORKSPACE_PRESET_STORAGE_KEY } from "../../workspace/presets";
 
 export type WorkspacePreset = "trader" | "quant" | "pm" | "risk" | "ops";
 
@@ -132,6 +133,11 @@ function WorkspaceControlBar({
   const hudOverlayEnabled = useSettingsStore((s) => s.hudOverlayEnabled);
   const setHudOverlayEnabled = useSettingsStore((s) => s.setHudOverlayEnabled);
 
+  const applyPreset = (nextPreset: WorkspacePreset) => {
+    setPreset(nextPreset);
+    window.dispatchEvent(new CustomEvent("ot:preset-change", { detail: nextPreset }));
+  };
+
   return (
     <div className="flex items-center justify-between gap-2 border-b border-terminal-border bg-terminal-panel/90 px-3 py-1.5 backdrop-blur">
       <div className="flex items-center gap-2">
@@ -141,7 +147,7 @@ function WorkspaceControlBar({
             <button
               key={option.id}
               type="button"
-              onClick={() => setPreset(option.id)}
+              onClick={() => applyPreset(option.id)}
               className={`rounded-sm border px-2 py-1 ot-type-label ${
                 preset === option.id
                   ? "border-terminal-accent bg-terminal-accent/10 text-terminal-accent"
@@ -226,7 +232,7 @@ export function TerminalShell({
   const navigate = useNavigate();
   const location = useLocation();
   const [preset, setPreset] = usePersistedState<WorkspacePreset>(
-    workspacePresetStorageKey,
+    workspacePresetStorageKey ?? WORKSPACE_PRESET_STORAGE_KEY,
     defaultPreset,
   );
   const [rightRailOpen, setRightRailOpen] = usePersistedState<boolean>(

@@ -26,15 +26,17 @@ import {
   fetchFactorReturns,
   fetchRiskCorrelation,
   fetchRiskExposures,
+  fetchRiskInsights,
   fetchRiskSummary,
   fetchSectorConcentration,
-} from "../api/quantClient";
-import { fetchRiskInsights } from "../api/client";
+} from "../api/client";
+import { ExposureHeatmap } from "../components/dashboard/ExposureHeatmap";
 import { StressTestPanel } from "../components/risk/StressTestPanel";
 import { AiInsightCard } from "../components/terminal/AiInsightCard";
 import { TerminalButton } from "../components/terminal/TerminalButton";
 import { TerminalPanel } from "../components/terminal/TerminalPanel";
 import { useStockStore } from "../store/stockStore";
+import type { PortfolioItem } from "../types";
 
 const COLORS = ["#26A65B", "#E84142", "#F39C12", "#5B8FF9", "#9B59B6", "#E67E22", "#1ABC9C"];
 const FACTOR_ORDER = ["market", "size", "value", "momentum", "quality", "low_vol"] as const;
@@ -150,6 +152,22 @@ export function RiskDashboardPage() {
     name,
     value: Number(value),
   }));
+  const heatmapItems = useMemo<PortfolioItem[]>(
+    () =>
+      sectorData.map((row, index) => ({
+        id: index,
+        ticker: row.name,
+        quantity: 0,
+        avg_buy_price: 0,
+        buy_date: "",
+        sector: row.name,
+        current_price: null,
+        current_value: row.value,
+        pnl: null,
+        exchange: mode === "ticker" ? undefined : "PORTFOLIO",
+      })),
+    [mode, sectorData],
+  );
 
   const factorExposureData = useMemo(
     () =>
@@ -418,6 +436,15 @@ export function RiskDashboardPage() {
               </div>
             </TerminalPanel>
           </div>
+
+          <ExposureHeatmap
+            title="Risk Exposure Heatmap"
+            market={mode === "ticker" ? storeTicker : "PORTFOLIO"}
+            items={heatmapItems}
+            factorExposures={factorExposures}
+            correlation={correlation}
+            defaultMode={correlation?.assets?.length ? "correlation" : "sector"}
+          />
 
           <TerminalPanel title="CORRELATION DYNAMICS" subtitle="Rolling pairwise correlation matrix (60D window)">
             <div className="overflow-x-auto p-1">

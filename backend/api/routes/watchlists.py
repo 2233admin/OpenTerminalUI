@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy.orm import Session
 
 from backend.api.deps import get_db
+from backend.auth.deps import get_current_user
 from backend.db.models import WatchlistORM
 
 router = APIRouter(prefix="/api/watchlists", tags=["watchlists"])
@@ -38,9 +39,8 @@ class WatchlistResponse(WatchlistBase):
 
 
 @router.get("", response_model=List[WatchlistResponse])
-def list_watchlists(db: Session = Depends(get_db)):
-    # In a real app, we would filter by user_id. For now, using a default.
-    user_id = "default_user"
+def list_watchlists(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    user_id = current_user.id
     items = db.query(WatchlistORM).filter(WatchlistORM.user_id == user_id).all()
 
     # If no watchlists exist, create a default one
@@ -71,8 +71,8 @@ def list_watchlists(db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=WatchlistResponse)
-def create_watchlist(payload: WatchlistCreate, db: Session = Depends(get_db)):
-    user_id = "default_user"
+def create_watchlist(payload: WatchlistCreate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    user_id = current_user.id
     new_wl = WatchlistORM(
         id=str(uuid4()),
         user_id=user_id,

@@ -37,40 +37,91 @@ OpenTerminalUI is a self-hosted, full-stack financial terminal that combines rea
 
 ## Screenshots
 
+### Workspace & Markets
+
 <p align="center">
   <img src="assets/screenshots/home.png" alt="Home Dashboard" width="900" />
 </p>
-<p align="center"><em>Home dashboard with market context, system health, portfolio sparkline, and workspace launch grid.</em></p>
+<p align="center"><em>Home / Mission Control — market context, AI Market Outlook, portfolio hub, system health, and the full feature launch grid.</em></p>
 
 <p align="center">
   <img src="assets/screenshots/chart-workstation.png" alt="Chart Workstation" width="900" />
 </p>
-<p align="center"><em>Multi-panel chart workstation with synchronized crosshairs, technical indicators, and drawing tools.</em></p>
+<p align="center"><em>Multi-panel chart workstation with synchronized crosshairs, 70+ technical indicators, and drawing tools.</em></p>
 
 <p align="center">
-  <img src="assets/screenshots/stock-detail.png" alt="Stock Detail" width="900" />
+  <img src="assets/screenshots/stock-detail.png" alt="Security Hub" width="900" />
 </p>
-<p align="center"><em>Stock detail / security hub with quotes, fundamental snapshot, and analysis tabs.</em></p>
+<p align="center"><em>Security Hub — quotes, fundamentals, price chart, analysis tabs, and the AI Catalyst &amp; Conviction panel.</em></p>
 
 <p align="center">
-  <img src="assets/screenshots/news-sentiment.png" alt="News & Sentiment" width="900" />
+  <img src="assets/screenshots/fno-option-chain.png" alt="F&O Option Chain" width="900" />
 </p>
-<p align="center"><em>News &amp; Sentiment workspace with the AI Emotion Indicator powered by a local Gemma model via LM Studio.</em></p>
+<p align="center"><em>Futures &amp; Options — live option chain with Greeks, OI build-up, and PCR signals.</em></p>
+
+<p align="center">
+  <img src="assets/screenshots/commodities.png" alt="Commodities" width="900" />
+</p>
+<p align="center"><em>Cross-asset coverage — commodities, forex, crypto, bonds, ETFs, and mutual funds.</em></p>
+
+### Research & Stock Picking
 
 <p align="center">
   <img src="assets/screenshots/screener.png" alt="Advanced Screener" width="900" />
 </p>
-<p align="center"><em>Advanced screener with query builder, custom formula engine, and saved formula library.</em></p>
+<p align="center"><em>Advanced screener with query builder, custom formula engine, composite factor scores, and "why ranked" insights.</em></p>
 
 <p align="center">
-  <img src="assets/screenshots/backtesting.png" alt="Backtesting Lab" width="900" />
+  <img src="assets/screenshots/factor-dashboard.png" alt="Factor Dashboard" width="900" />
 </p>
-<p align="center"><em>Backtesting workspace with strategy presets, performance summary, and AI backtest analysis.</em></p>
+<p align="center"><em>Factor Dashboard — multi-factor (Value / Momentum / Quality / Low-Vol) idea lists and ranked picks for US &amp; Indian markets.</em></p>
+
+<p align="center">
+  <img src="assets/screenshots/news-sentiment.png" alt="News & Sentiment" width="900" />
+</p>
+<p align="center"><em>News &amp; Sentiment with the AI Emotion Indicator powered by a local Gemma model via LM Studio.</em></p>
+
+<p align="center">
+  <img src="assets/screenshots/intelligence-timeline.png" alt="Intelligence Timeline" width="900" />
+</p>
+<p align="center"><em>Unified Intelligence Timeline — news, alerts, events, insider activity, earnings, and model signals in one feed.</em></p>
+
+### Portfolio, Risk & Backtesting
+
+<p align="center">
+  <img src="assets/screenshots/portfolio.png" alt="Portfolio" width="900" />
+</p>
+<p align="center"><em>Portfolio monitoring — holdings, movement &amp; historical return, risk metrics, and AI Risk Assessment.</em></p>
+
+<p align="center">
+  <img src="assets/screenshots/cockpit.png" alt="Cockpit" width="900" />
+</p>
+<p align="center"><em>Cockpit Priority Stack — a ranked daily brief across portfolio risk, alerts, catalysts, movers, and model signals.</em></p>
 
 <p align="center">
   <img src="assets/screenshots/risk-dashboard.png" alt="Risk Dashboard" width="900" />
 </p>
-<p align="center"><em>Risk dashboard with statistical risk metrics, factor exposures, and AI Risk Insights powered by Gemma.</em></p>
+<p align="center"><em>Risk dashboard with statistical risk metrics, factor/exposure heatmaps, and AI Risk Insights powered by Gemma.</em></p>
+
+<p align="center">
+  <img src="assets/screenshots/backtesting.png" alt="Backtesting Lab" width="900" />
+</p>
+<p align="center"><em>Backtesting workspace with strategy presets, execution-profile modeling, performance summary, and AI analysis.</em></p>
+
+<p align="center">
+  <img src="assets/screenshots/model-lab.png" alt="Model Lab" width="900" />
+</p>
+<p align="center"><em>Model Lab — parameter sweeps, walk-forward validation, Monte Carlo robustness, and run leaderboards.</em></p>
+
+<p align="center">
+  <img src="assets/screenshots/portfolio-lab.png" alt="Portfolio Lab" width="900" />
+</p>
+<p align="center"><em>Portfolio Lab — multi-asset portfolio backtests, strategy blends, and correlation analysis.</em></p>
+
+<p align="center">
+  <img src="assets/screenshots/watchlist.png" alt="Watchlist" width="900" />
+</p>
+<p align="center"><em>Watchlists with live quotes, heatmap view, and one-click routing to charts, screener, and backtests.</em></p>
 
 ## Features
 
@@ -117,6 +168,15 @@ OpenTerminalUI is a self-hosted, full-stack financial terminal that combines rea
 - **Preset Management** &mdash; save, load, share, and browse community screens
 - **Score-Based Ranking** &mdash; deterministic scoring with stable ordering and explainable setup detection
 
+### Insight-Driven Stock Picking
+
+- **Multi-Factor Composite Scoring** &mdash; cross-sectional, sector-relative Value / Momentum / Quality / Low-Volatility z-scores combined into a weighted composite rank
+- **Ranked Idea Lists** &mdash; top-quintile picks per market and sector for both US (NYSE/NASDAQ) and Indian (NSE/BSE) universes
+- **Factor Dashboard** &mdash; per-symbol factor radar, factor chips, and conviction scoring with a US/India market toggle
+- **Catalyst & Conviction Engine** &mdash; LLM-extracted sentiment and upcoming catalysts from NSE/BSE and SEC filings, surfaced in the Security Hub
+- **Point-in-Time Fundamentals** &mdash; as-reported fundamental history that removes look-ahead bias from factor and fundamental backtests
+- **Why-Ranked Explanations** &mdash; composite scores, factor chips, and plain-language rationale on screener rows, with one-click routing to chart and backtest
+
 ### Futures & Options (F&O)
 
 - **Option Chain** &mdash; full contract listing with live Greeks (Delta, Gamma, Theta, Vega, Rho)
@@ -153,6 +213,10 @@ OpenTerminalUI is a self-hosted, full-stack financial terminal that combines rea
 - **Parameter Sweep** &mdash; sensitivity analysis across hyperparameter ranges
 - **Experiment Tracking** &mdash; create, run, compare, and promote models through the Model Lab
 - **Model Governance** &mdash; version tracking with code/data hashing, promotion to paper trading
+- **Monte Carlo Robustness** &mdash; trade/return resampling with confidence cones, terminal-wealth distribution, and probability-of-profit
+- **Liquidity-Aware Execution** &mdash; fixed-bps, volume-weighted, and square-root market-impact slippage models with percent-of-volume caps
+- **Strategy Tear-Sheets** &mdash; standardized HTML reports with equity, drawdown, rolling Sharpe, monthly returns, and benchmark overlay
+- **Run Leaderboards** &mdash; sortable Model Lab / Portfolio Lab run comparison by Sharpe, CAGR, max drawdown, turnover, and stability
 
 ### Portfolio Lab
 
@@ -162,6 +226,15 @@ OpenTerminalUI is a self-hosted, full-stack financial terminal that combines rea
 - **Rebalance Scheduling** &mdash; weekly, monthly, quarterly, or custom frequency
 - **Attribution Analysis** &mdash; top contributors/detractors, worst drawdowns, rebalance log
 - **Correlation Matrices** &mdash; cross-asset cluster analysis
+
+### Cockpit, Workspaces & Intelligence
+
+- **Cockpit Priority Stack** &mdash; a ranked daily brief across portfolio risk, alerts, catalysts, news shocks, top movers, and model signals
+- **Unified Intelligence Timeline** &mdash; news, alerts, events, insider activity, earnings, corporate actions, model signals, and backtest runs in one chronological feed
+- **Exposure Heatmaps** &mdash; sector, factor, currency, and correlation exposure maps across Home, Cockpit, and Risk
+- **Workspace Presets** &mdash; Trader / Quant / PM / Risk / Ops presets that reconfigure dashboards, panels, and quick links
+- **Saved Views** &mdash; capture and restore page, filters, ticker, tabs, columns, and chart layout across major workflows
+- **AI Insight Cards** &mdash; Gemma-powered insights embedded consistently across Home, Cockpit, Screener, Portfolio, and Security Hub, with graceful offline fallback
 
 ### Cross-Asset & Macro
 

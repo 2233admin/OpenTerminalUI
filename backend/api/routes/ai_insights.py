@@ -121,6 +121,38 @@ async def backtest_explain(payload: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+@router.post("/ai/collection-briefing")
+async def collection_briefing(payload: dict[str, Any]) -> dict[str, Any]:
+    """Return an AI briefing for a collection of symbols (Screener/Watchlist)."""
+    symbols = payload.get("symbols") or []
+    if not isinstance(symbols, list):
+        symbols = []
+    symbols = [str(s).strip().upper() for s in symbols[:10] if s]
+    scope = str(payload.get("scope") or "collection").strip()
+
+    if not symbols:
+        return {
+            "engine": "unavailable",
+            "summary": "No symbols provided for AI analysis.",
+            "sections": [],
+        }
+
+    system_prompt = (
+        f"You are a market analyst. Assess this {scope} of {len(symbols)} stocks. "
+        "Summarize the collective themes, sector distribution, and technical/fundamental "
+        "posture. Provide exactly these sections: 'Themes & Posture' (tone neutral), "
+        "'Top Picks' (tone positive), and 'Risks' (tone negative)."
+    )
+    user_content = f"Symbols: {', '.join(symbols)}\nContext: Analysis of a filtered {scope}."
+
+    return await run_insight(
+        system_prompt,
+        user_content,
+        max_tokens=900,
+        unavailable_summary=f"AI {scope} analysis is unavailable - start LM Studio with a Gemma model.",
+    )
+
+
 @router.post("/ai/risk-insights")
 async def risk_insights(payload: dict[str, Any]) -> dict[str, Any]:
     """Return a narrative interpretation of portfolio/ticker risk metrics."""

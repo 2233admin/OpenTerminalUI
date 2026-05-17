@@ -117,6 +117,8 @@ import {
   type ChartAlertDraft,
 } from "../../shared/chart/chartAlerts";
 import { DrawingObjectTree } from "./DrawingObjectTree";
+import { ChartAccessibilityLayer } from "./ChartAccessibilityLayer";
+import { ChartCanvas } from "./ChartCanvas";
 
 type ChartMode = "candles" | "line" | "area";
 
@@ -1991,6 +1993,10 @@ export function TradingChart({
     inspectedCandle && inspectedCandle.open
       ? ((inspectedCandle.close - inspectedCandle.open) / inspectedCandle.open) * 100
       : null;
+  const accessibleOhlcSummary = inspectedCandle
+    ? `${ticker} ${timeframe} ${selectedTime}: open ${inspectedCandle.open.toFixed(2)}, high ${inspectedCandle.high.toFixed(2)}, low ${inspectedCandle.low.toFixed(2)}, close ${inspectedCandle.close.toFixed(2)}`
+    : `${ticker} ${timeframe} chart has no candle selected`;
+  const accessibleRows = replayParsed.slice(-20);
   const sessionContext = useMemo(
     () => describeSessionState(inspectedCandle, replayEnabled),
     [inspectedCandle, replayEnabled],
@@ -2214,6 +2220,8 @@ export function TradingChart({
   return (
     <div
       className="relative z-0 h-full w-full rounded border border-terminal-border"
+      role="region"
+      aria-label={`${ticker} ${timeframe} trading chart`}
       onContextMenu={(e) => {
         if (!onAddToPortfolio && !onRequestCreateAlert) return;
         e.preventDefault();
@@ -2239,8 +2247,9 @@ export function TradingChart({
         });
       }}
     >
-      <div ref={chartRef} className="h-full w-full" />
-      <div className="absolute left-2 top-2 z-[6] flex max-w-[calc(100%-1rem)] flex-wrap items-center gap-1 rounded border border-terminal-border bg-terminal-panel/95 px-2 py-1 text-[10px] text-terminal-text">
+      <ChartCanvas ref={chartRef} />
+      <ChartAccessibilityLayer summary={accessibleOhlcSummary} rows={accessibleRows} formatTime={formatInspectorTime} />
+      <div className="absolute left-2 top-2 z-[6] flex max-h-20 max-w-[calc(100%-1rem)] flex-wrap items-center gap-1 overflow-auto rounded border border-terminal-border bg-terminal-panel/95 px-2 py-1 text-[10px] text-terminal-text sm:max-h-none">
         <button
           type="button"
           className={`rounded border px-1.5 py-0.5 ${
@@ -2393,7 +2402,7 @@ export function TradingChart({
         ) : null}
       </div>
       <div
-        className="absolute right-2 top-2 z-[8] flex items-center gap-1 rounded border border-terminal-border bg-terminal-panel/95 px-2 py-1 text-[10px] text-terminal-text"
+        className="absolute right-2 top-12 z-[8] flex max-w-[calc(100%-1rem)] flex-wrap items-center gap-1 rounded border border-terminal-border bg-terminal-panel/95 px-2 py-1 text-[10px] text-terminal-text sm:top-2"
         data-testid="chart-context-controls"
       >
         <button

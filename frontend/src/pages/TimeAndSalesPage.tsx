@@ -61,10 +61,10 @@ export function TimeAndSalesPage() {
           </div>
         </div>
 
-        <div className="grid min-h-[780px] gap-2 xl:grid-cols-[1.85fr_1fr]">
-          <TimeAndSales ticker={activeTicker} className="min-h-[780px]" />
-          <TerminalPanel title="Micro Trend" subtitle={`${activeTicker} price sparkline`} bodyClassName="h-full min-h-[780px]">
-            <div className="flex h-full min-h-[720px] flex-col gap-3">
+        <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[1.85fr_1fr]">
+          <TimeAndSales ticker={activeTicker} className="min-h-0 flex-1" />
+          <TerminalPanel title="Micro Trend" subtitle={`${activeTicker} price sparkline`} bodyClassName="flex h-full min-h-0 flex-col">
+            <div className="flex min-h-0 flex-1 flex-col gap-3">
               <div className="grid grid-cols-2 gap-2">
                 <div className="rounded-sm border border-terminal-border bg-terminal-bg px-3 py-2">
                   <div className="text-[10px] uppercase tracking-[0.18em] text-terminal-muted">Last</div>

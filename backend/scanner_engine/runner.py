@@ -81,6 +81,7 @@ class ScannerRunner:
         matches: list[dict[str, Any]] = []
         scanned = 0
         sem = asyncio.Semaphore(max(1, concurrency))
+        market_hint = "US" if preset.universe.strip().upper().startswith("US:") else "IN"
 
         async def _scan_symbol(symbol: str) -> tuple[int, list[dict[str, Any]]]:
             async with sem:
@@ -109,6 +110,9 @@ class ScannerRunner:
                 features["trend_alignment"] = trend_alignment
                 features["breakout_strength"] = breakout_strength
                 features["atr_pct"] = float(enriched["atr_pct"].iloc[-1]) if not pd.isna(enriched["atr_pct"].iloc[-1]) else 0.0
+                fno_signals = await self._load_fno_signals(symbol, market_hint)
+                if fno_signals.get("available"):
+                    features["fno_signals"] = fno_signals
                 payload["features"] = features
                 symbol_matches.append(
                     {
@@ -143,6 +147,16 @@ class ScannerRunner:
             "setups": sorted({str(r.get("setup_type") or "") for r in ranked}),
         }
         return ScanRunBundle(summary=summary, results=ranked)
+
+    async def _load_fno_signals(self, symbol: str, market: str) -> dict[str, Any]:
+        if market != "IN":
+            return {"available": False, "reason": "non_india_market"}
+        try:
+            from backend.fno.services.signals import get_option_chain_signals
+
+            return await get_option_chain_signals(symbol, market="IN")
+        except Exception:
+            return {"available": False, "reason": "fno_signal_error"}
 
     def _pass_liquidity(self, df: pd.DataFrame, preset: ScanPresetBase) -> bool:
         close = float(df["Close"].iloc[-1])

@@ -37,15 +37,18 @@ import { WalkForwardTimeline } from "../components/backtesting/panels/WalkForwar
 import { MosaicWorkspace } from "../components/backtesting/workspace/MosaicWorkspace";
 import type { PanelRendererMap } from "../components/backtesting/workspace/PanelRegistry";
 import { TerminalPanel } from "../components/terminal/TerminalPanel";
+import { SavedViewsControl } from "../components/savedViews/SavedViewsControl";
 import { cloneIndicatorConfig, makeIndicatorInstanceId } from "../shared/chart/indicatorCatalog";
 import type { ChartKind, IndicatorConfig } from "../shared/chart/types";
 import { useSettingsStore } from "../store/settingsStore";
 import { useStockStore } from "../store/stockStore";
 import { terminalColors } from "../theme/terminal";
+import { consumePendingSavedView } from "../workspace/savedViewRestore";
 
 type JobState = "idle" | "queued" | "running" | "done" | "failed";
 type BacktestTimeframe = "1D" | "1W" | "1M";
 type BacktestMarket = "NSE" | "BSE" | "NYSE" | "NASDAQ" | "AMEX";
+type ExecutionSlippageModel = "fixed_bps" | "volume_weighted" | "impact_curve";
 type VizTab =
   | "chart"
   | "equity"
@@ -268,17 +271,17 @@ function aggregateBars(input: Bar[], tf: BacktestTimeframe): Bar[] {
       high: Math.max(...sorted.map((x) => Number(x.high))),
       low: Math.min(...sorted.map((x) => Number(x.low))),
       close: Number(last.close),
-      volume: sorted.reduce((acc, x) => acc + Number(x.volume ?? 0), 0),
+      volume: sorted.reduce((acc: number, x: any) => acc + Number(x.volume ?? 0), 0),
     });
   }
   return out.sort((a, b) => Number(a.time) - Number(b.time));
 }
 
 function toBarsFromEquityCurve(
-  equityCurve: Array<{ date: string; open: number; high: number; low: number; close: number; position?: number }>,
+  equityCurve: Array<{ date: string; equity?: number; open?: number; high?: number; low?: number; close?: number; position?: number }>,
 ): Bar[] {
   return equityCurve
-    .map((p) => {
+    .map((p: any) => {
       const ts = toUnixSeconds(p.date);
       const close = Number((p as { close?: number; equity?: number }).close ?? (p as { equity?: number }).equity);
       const open = Number((p as { open?: number }).open ?? close);
@@ -313,7 +316,7 @@ function mapTradeMarkersToTimeframe(
     const key = bucketKey(Number(b.time), timeframe);
     if (key !== "invalid") keyToTime.set(key, Number(b.time));
   }
-  return trades.map((m) => {
+  return trades.map((m: any) => {
     const ts = toUnixSeconds(m.date);
     const key = bucketKey(ts, timeframe);
     const mapped = key !== "invalid" ? keyToTime.get(key) : undefined;
@@ -398,6 +401,20 @@ export function BacktestingPage() {
   const [showIndicators, setShowIndicators] = useState(true);
   const [activeIndicators, setActiveIndicators] = useState<IndicatorConfig[]>(cloneStrategyIndicators(STRATEGY_INDICATORS.sma_crossover || []));
   const [activeTab, setActiveTab] = useState<VizTab>("chart");
+
+  useEffect(() => {
+    const payload = consumePendingSavedView(window.location.pathname);
+    if (!payload) return;
+    const filters = payload.filters ?? {};
+    const tabs = payload.activeTabs ?? {};
+    if (typeof filters.asset === "string") setAsset(filters.asset);
+    if (filters.market === "NSE" || filters.market === "BSE" || filters.market === "NYSE" || filters.market === "NASDAQ" || filters.market === "AMEX") setMarket(filters.market);
+    if (filters.dataTimeframe === "1m" || filters.dataTimeframe === "5m" || filters.dataTimeframe === "15m" || filters.dataTimeframe === "1h" || filters.dataTimeframe === "1d") setDataTimeframe(filters.dataTimeframe);
+    if (typeof filters.start === "string") setStart(filters.start);
+    if (typeof filters.end === "string") setEnd(filters.end);
+    if (typeof filters.strategyMode === "string") setStrategyMode(filters.strategyMode);
+    if (tabs.activeTab === "chart" || tabs.activeTab === "equity" || tabs.activeTab === "drawdown" || tabs.activeTab === "monthly" || tabs.activeTab === "rolling" || tabs.activeTab === "trades" || tabs.activeTab === "compare" || tabs.activeTab === "surface3d") setActiveTab(tabs.activeTab);
+  }, []);
   const [compareStrategies, setCompareStrategies] = useState<string[]>([]);
   const [compareResults, setCompareResults] = useState<Map<string, CompareState>>(new Map());
   const [compareRunning, setCompareRunning] = useState(false);
@@ -408,14 +425,23 @@ export function BacktestingPage() {
   const [adjustedSeries, setAdjustedSeries] = useState(true);
   const [executionProfile, setExecutionProfile] = useState({
     commission_bps: 5,
+    slippage_model: "fixed_bps" as ExecutionSlippageModel,
     slippage_bps: 3,
     spread_bps: 1,
     market_impact_bps: 0,
+    volume_cap_pct: 10,
   });
   const proWorkspaceEnabled = import.meta.env.VITE_BACKTEST_PRO_WORKSPACE === "1";
 
   useEffect(() => { if (storeTicker) setAsset(storeTicker.toUpperCase()); }, [storeTicker]);
   useEffect(() => { if (selectedMarket) setMarket(selectedMarket); }, [selectedMarket]);
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const ticker = String((location.state as { ticker?: string } | null)?.ticker || params.get("symbol") || params.get("ticker") || "").toUpperCase();
+    const nextMarket = String((location.state as { market?: string } | null)?.market || params.get("market") || "").toUpperCase();
+    if (ticker) setAsset(ticker);
+    if (KNOWN_MARKETS.includes(nextMarket as BacktestMarket)) setMarket(nextMarket as BacktestMarket);
+  }, [location.search, location.state]);
   useEffect(() => {
     void (async () => {
       try {
@@ -516,13 +542,15 @@ export function BacktestingPage() {
           adjusted: adjustedSeries,
           execution_profile: {
             commission_bps: sanitize(executionProfile.commission_bps, 0),
+            slippage_model: executionProfile.slippage_model,
             slippage_bps: sanitize(executionProfile.slippage_bps, 0),
             spread_bps: sanitize(executionProfile.spread_bps, 0),
             market_impact_bps: sanitize(executionProfile.market_impact_bps, 0),
+            volume_cap_pct: sanitize(executionProfile.volume_cap_pct, 10),
           },
         },
       });
-      setRunId(res.run_id);
+      setRunId(res.run_id || res.job_id);
       setJobState("queued");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to submit backtest");
@@ -540,7 +568,7 @@ export function BacktestingPage() {
         try {
           const status = await fetchBacktestJobStatus(runId);
           if (!active) return;
-          if (status.status === "done" || status.status === "failed") {
+          if ((status.status as string) === "done" || status.status === "failed") {
             const payload = await fetchBacktestJobResult(runId);
             if (!active) return;
             setResult(payload);
@@ -646,11 +674,11 @@ export function BacktestingPage() {
 
   const equityData = result?.result?.equity_curve || [];
   const trades = result?.result?.trades || [];
-  const tradeMarkers = useMemo(() => trades.map((t) => ({ date: t.date, price: t.price, action: t.action.toUpperCase() })), [trades]);
-  const totalTradeQty = useMemo(() => trades.reduce((acc, trade) => acc + Math.abs(trade.quantity), 0), [trades]);
+  const tradeMarkers = useMemo(() => trades.map((t: any) => ({ date: t.date, price: t.price, action: t.action.toUpperCase() })), [trades]);
+  const totalTradeQty = useMemo(() => trades.reduce((acc: number, trade: any) => acc + Math.abs(trade.quantity), 0), [trades]);
   const transactionCostBps = 10;
   const turnoverNotional = useMemo(
-    () => trades.reduce((acc, t) => acc + Math.abs(Number(t.quantity) * Number(t.price)), 0),
+    () => trades.reduce((acc: number, t: any) => acc + Math.abs(Number(t.quantity) * Number(t.price)), 0),
     [trades],
   );
   const estimatedTxnCost = (turnoverNotional * transactionCostBps) / 10000;
@@ -741,8 +769,8 @@ export function BacktestingPage() {
     const rolling_metrics: Analytics["rolling_metrics"] = [];
     for (let i = rollingWindow - 1; i < returns.length; i += 1) {
       const windowReturns = returns.slice(i - rollingWindow + 1, i + 1);
-      const mean = windowReturns.reduce((a, b) => a + b, 0) / windowReturns.length;
-      const variance = windowReturns.reduce((a, b) => a + ((b - mean) ** 2), 0) / windowReturns.length;
+      const mean = windowReturns.reduce((a: number, b: number) => a + b, 0) / windowReturns.length;
+      const variance = windowReturns.reduce((a: number, b: number) => a + ((b - mean) ** 2), 0) / windowReturns.length;
       const std = Math.sqrt(variance);
       const annualizedMean = mean * 252;
       const annualizedVol = std * Math.sqrt(252);
@@ -773,11 +801,11 @@ export function BacktestingPage() {
       const idx = Math.floor(q * (sortedReturns.length - 1));
       return sortedReturns[Math.max(0, Math.min(sortedReturns.length - 1, idx))];
     };
-    const meanRet = returnsPct.length ? returnsPct.reduce((a, b) => a + b, 0) / returnsPct.length : 0;
+    const meanRet = returnsPct.length ? returnsPct.reduce((a: number, b: number) => a + b, 0) / returnsPct.length : 0;
     const medianRet = sortedReturns.length ? sortedReturns[Math.floor(sortedReturns.length / 2)] : 0;
-    const stdRet = returnsPct.length ? Math.sqrt(returnsPct.reduce((a, b) => a + ((b - meanRet) ** 2), 0) / returnsPct.length) : 0;
-    const skewness = stdRet ? returnsPct.reduce((a, b) => a + (((b - meanRet) / stdRet) ** 3), 0) / Math.max(returnsPct.length, 1) : 0;
-    const kurtosis = stdRet ? returnsPct.reduce((a, b) => a + (((b - meanRet) / stdRet) ** 4), 0) / Math.max(returnsPct.length, 1) - 3 : 0;
+    const stdRet = returnsPct.length ? Math.sqrt(returnsPct.reduce((a: number, b: number) => a + ((b - meanRet) ** 2), 0) / returnsPct.length) : 0;
+    const skewness = stdRet ? returnsPct.reduce((a: number, b: number) => a + (((b - meanRet) / stdRet) ** 3), 0) / Math.max(returnsPct.length, 1) : 0;
+    const kurtosis = stdRet ? returnsPct.reduce((a: number, b: number) => a + (((b - meanRet) / stdRet) ** 4), 0) / Math.max(returnsPct.length, 1) - 3 : 0;
 
     const scatter: Analytics["trade_analytics"]["scatter"] = [];
     let openTrade: { date: string; price: number; quantity: number } | null = null;
@@ -816,8 +844,8 @@ export function BacktestingPage() {
     }
     const winning = scatter.filter((s) => s.pnl > 0);
     const losing = scatter.filter((s) => s.pnl <= 0);
-    const totalWinPnl = winning.reduce((a, b) => a + b.pnl, 0);
-    const totalLossPnl = Math.abs(losing.reduce((a, b) => a + b.pnl, 0));
+    const totalWinPnl = winning.reduce((a: number, b: any) => a + b.pnl, 0);
+    const totalLossPnl = Math.abs(losing.reduce((a: number, b: any) => a + b.pnl, 0));
     const totalTrades = scatter.length;
     const summary: Record<string, number> = {
       total_trades: totalTrades,
@@ -825,12 +853,12 @@ export function BacktestingPage() {
       losing_trades: losing.length,
       win_rate: totalTrades ? (winning.length / totalTrades) * 100 : 0,
       avg_win: winning.length ? totalWinPnl / winning.length : 0,
-      avg_loss: losing.length ? losing.reduce((a, b) => a + b.pnl, 0) / losing.length : 0,
+      avg_loss: losing.length ? losing.reduce((a: number, b: any) => a + b.pnl, 0) / losing.length : 0,
       profit_factor: totalLossPnl ? totalWinPnl / totalLossPnl : 0,
-      expectancy: totalTrades ? scatter.reduce((a, b) => a + b.pnl, 0) / totalTrades : 0,
+      expectancy: totalTrades ? scatter.reduce((a: number, b: any) => a + b.pnl, 0) / totalTrades : 0,
       largest_win: winning.length ? Math.max(...winning.map((w) => w.pnl)) : 0,
       largest_loss: losing.length ? Math.min(...losing.map((l) => l.pnl)) : 0,
-      avg_holding_days: totalTrades ? scatter.reduce((a, b) => a + b.holding_days, 0) / totalTrades : 0,
+      avg_holding_days: totalTrades ? scatter.reduce((a: number, b: any) => a + b.holding_days, 0) / totalTrades : 0,
     };
 
     return {
@@ -967,13 +995,13 @@ export function BacktestingPage() {
     if (dailyReturnsPct.length < 40) return [];
     const volatility = dailyReturnsPct.map((_, idx) => {
       const w = dailyReturnsPct.slice(Math.max(0, idx - 9), idx + 1);
-      const mean = w.reduce((a, b) => a + b, 0) / Math.max(w.length, 1);
-      const variance = w.reduce((a, b) => a + ((b - mean) ** 2), 0) / Math.max(w.length, 1);
+      const mean = w.reduce((a: number, b: number) => a + b, 0) / Math.max(w.length, 1);
+      const variance = w.reduce((a: number, b: number) => a + ((b - mean) ** 2), 0) / Math.max(w.length, 1);
       return Math.sqrt(variance);
     });
     const drift = dailyReturnsPct.map((_, idx) => {
       const w = dailyReturnsPct.slice(Math.max(0, idx - 19), idx + 1);
-      return w.reduce((a, b) => a + b, 0) / Math.max(w.length, 1);
+      return w.reduce((a: number, b: number) => a + b, 0) / Math.max(w.length, 1);
     });
     const volSorted = [...volatility].sort((a, b) => a - b);
     const driftSorted = [...drift].sort((a, b) => a - b);
@@ -994,7 +1022,7 @@ export function BacktestingPage() {
     for (let x = 0; x < 3; x += 1) {
       for (let y = 0; y < 3; y += 1) {
         const vals = buckets[`${x}-${y}`] ?? [];
-        const expectancy = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+        const expectancy = vals.length ? vals.reduce((a: number, b: number) => a + b, 0) / vals.length : 0;
         points.push({
           x,
           y,
@@ -1018,14 +1046,14 @@ export function BacktestingPage() {
       const tradeEnd = Math.max(tradeStart + 1, Math.floor(((x + 1) / bucketX) * tradesSeries.length));
       const tradeSlice = tradesSeries.slice(tradeStart, tradeEnd);
       const avgPrice = tradeSlice.length
-        ? tradeSlice.reduce((acc, t) => acc + Number(t.price || 0), 0) / tradeSlice.length
+        ? tradeSlice.reduce((acc: number, t: any) => acc + Number(t.price || 0), 0) / tradeSlice.length
         : 0;
       for (let y = 0; y < bucketY; y += 1) {
         const curveStart = Math.floor((y / bucketY) * curve.length);
         const curveEnd = Math.max(curveStart + 1, Math.floor(((y + 1) / bucketY) * curve.length));
         const curveSlice = curve.slice(curveStart, curveEnd);
         const avgEquity = curveSlice.length
-          ? curveSlice.reduce((acc, p) => acc + Number(p.equity || 0), 0) / curveSlice.length
+          ? curveSlice.reduce((acc: number, p: any) => acc + Number(p.equity || 0), 0) / curveSlice.length
           : 0;
         const depthProxy = Math.max(0, (tradeSlice.length * 8) + (avgEquity > 0 ? (avgEquity / 100000) : 0));
         const spreadProxy = avgPrice > 0 ? (1 / avgPrice) * 10000 : 0;
@@ -1043,13 +1071,13 @@ export function BacktestingPage() {
 
   const orderbookAvgDepth = useMemo(() => {
     if (!orderbookLiquidityPoints.length) return 0;
-    return orderbookLiquidityPoints.reduce((acc, p) => acc + p.z, 0) / orderbookLiquidityPoints.length;
+    return orderbookLiquidityPoints.reduce((acc: number, p: any) => acc + p.z, 0) / orderbookLiquidityPoints.length;
   }, [orderbookLiquidityPoints]);
 
   const orderbookSpreadBps = useMemo(() => {
     const tradesSeries = result?.result?.trades || [];
     if (!tradesSeries.length) return 0;
-    const avgPrice = tradesSeries.reduce((acc, t) => acc + Number(t.price || 0), 0) / tradesSeries.length;
+    const avgPrice = tradesSeries.reduce((acc: number, t: any) => acc + Number(t.price || 0), 0) / tradesSeries.length;
     return avgPrice > 0 ? (1 / avgPrice) * 10000 : 0;
   }, [result]);
 
@@ -1061,8 +1089,8 @@ export function BacktestingPage() {
       for (let moneyness = 0; moneyness < buckets; moneyness += 1) {
         const start = Math.max(0, dailyReturnsPct.length - (tenor + 2) * 10);
         const slice = dailyReturnsPct.slice(start);
-        const mean = slice.reduce((acc, r) => acc + r, 0) / Math.max(slice.length, 1);
-        const variance = slice.reduce((acc, r) => acc + ((r - mean) ** 2), 0) / Math.max(slice.length, 1);
+        const mean = slice.reduce((acc: number, r: number) => acc + r, 0) / Math.max(slice.length, 1);
+        const variance = slice.reduce((acc: number, r: number) => acc + ((r - mean) ** 2), 0) / Math.max(slice.length, 1);
         const realized = Math.sqrt(Math.max(0, variance));
         const skewAdj = ((moneyness - 3.5) / 4) * 0.6;
         const termAdj = ((tenor + 1) / buckets) * 0.35;
@@ -1081,7 +1109,7 @@ export function BacktestingPage() {
   const impliedAtmIvPct = useMemo(() => {
     if (!impliedVolatilitySurfacePoints.length) return 0;
     const atm = impliedVolatilitySurfacePoints.filter((p) => p.y === 3 || p.y === 4);
-    const avg = atm.length ? atm.reduce((acc, p) => acc + p.z, 0) / atm.length : 0;
+    const avg = atm.length ? atm.reduce((acc: number, p: any) => acc + p.z, 0) / atm.length : 0;
     return avg * 10;
   }, [impliedVolatilitySurfacePoints]);
 
@@ -1089,8 +1117,8 @@ export function BacktestingPage() {
     if (!impliedVolatilitySurfacePoints.length) return 0;
     const left = impliedVolatilitySurfacePoints.filter((p) => p.y <= 2);
     const right = impliedVolatilitySurfacePoints.filter((p) => p.y >= 5);
-    const leftAvg = left.length ? left.reduce((acc, p) => acc + p.z, 0) / left.length : 0;
-    const rightAvg = right.length ? right.reduce((acc, p) => acc + p.z, 0) / right.length : 0;
+    const leftAvg = left.length ? left.reduce((acc: number, p: any) => acc + p.z, 0) / left.length : 0;
+    const rightAvg = right.length ? right.reduce((acc: number, p: any) => acc + p.z, 0) / right.length : 0;
     return leftAvg - rightAvg;
   }, [impliedVolatilitySurfacePoints]);
 
@@ -1103,8 +1131,8 @@ export function BacktestingPage() {
       const lookback = 5 + horizon * 4;
       for (let regime = 0; regime < yBuckets; regime += 1) {
         const tail = dailyReturnsPct.slice(Math.max(0, dailyReturnsPct.length - lookback));
-        const mean = tail.reduce((acc, r) => acc + r, 0) / Math.max(tail.length, 1);
-        const variance = tail.reduce((acc, r) => acc + ((r - mean) ** 2), 0) / Math.max(tail.length, 1);
+        const mean = tail.reduce((acc: number, r: number) => acc + r, 0) / Math.max(tail.length, 1);
+        const variance = tail.reduce((acc: number, r: number) => acc + ((r - mean) ** 2), 0) / Math.max(tail.length, 1);
         const realized = Math.sqrt(Math.max(0, variance));
         const regimeAdj = (regime / (yBuckets - 1)) * 0.9;
         const z = (realized + regimeAdj) * 11;
@@ -1121,7 +1149,7 @@ export function BacktestingPage() {
 
   const realizedVolPct = useMemo(() => {
     if (!volatilitySurfacePoints.length) return 0;
-    const avg = volatilitySurfacePoints.reduce((acc, p) => acc + p.z, 0) / volatilitySurfacePoints.length;
+    const avg = volatilitySurfacePoints.reduce((acc: number, p: any) => acc + p.z, 0) / volatilitySurfacePoints.length;
     return avg * 1.5;
   }, [volatilitySurfacePoints]);
 
@@ -1129,8 +1157,8 @@ export function BacktestingPage() {
     if (!volatilitySurfacePoints.length) return 0;
     const near = volatilitySurfacePoints.filter((p) => p.x <= 1);
     const far = volatilitySurfacePoints.filter((p) => p.x >= 6);
-    const nearAvg = near.length ? near.reduce((acc, p) => acc + p.z, 0) / near.length : 0;
-    const farAvg = far.length ? far.reduce((acc, p) => acc + p.z, 0) / far.length : 0;
+    const nearAvg = near.length ? near.reduce((acc: number, p: any) => acc + p.z, 0) / near.length : 0;
+    const farAvg = far.length ? far.reduce((acc: number, p: any) => acc + p.z, 0) / far.length : 0;
     return farAvg - nearAvg;
   }, [volatilitySurfacePoints]);
 
@@ -1201,9 +1229,9 @@ export function BacktestingPage() {
         });
         let done = false;
         while (!done) {
-          const status = await fetchBacktestJobStatus(submitRes.run_id);
-          if (status.status === "done" || status.status === "failed") {
-            const payload = await fetchBacktestJobResult(submitRes.run_id);
+          const status = await fetchBacktestJobStatus(submitRes.run_id || submitRes.job_id);
+          if ((status.status as string) === "done" || status.status === "failed") {
+            const payload = await fetchBacktestJobResult(submitRes.run_id || submitRes.job_id);
             nextMap.set(key, { result: payload, status: payload.status });
             setCompareResults(new Map(nextMap));
             done = true;
@@ -1467,7 +1495,21 @@ export function BacktestingPage() {
 
   return (
     <div className="h-full space-y-3 overflow-y-auto px-3 py-2 pb-4">
-      <TerminalPanel title="Research Suites" subtitle="Backtesting + Model Lab">
+      <TerminalPanel
+        title="Research Suites"
+        subtitle="Backtesting + Model Lab"
+        actions={
+          <SavedViewsControl
+            pageLabel="Backtesting"
+            capture={() => ({
+              filters: { asset, market, dataTimeframe, start, end, strategyMode },
+              activeTabs: { activeTab },
+              chartLayout: { activeTab },
+              selectedTicker: asset,
+            })}
+          />
+        }
+      >
         <div className="flex flex-wrap gap-2 text-xs">
           <Link className={`rounded border px-2 py-1 ${location.pathname.startsWith("/backtesting/model-lab") ? "border-terminal-border text-terminal-muted hover:text-terminal-text" : "border-terminal-accent bg-terminal-accent/10 text-terminal-accent"}`} to="/backtesting">
             Backtesting Console
@@ -1501,22 +1543,45 @@ export function BacktestingPage() {
                 <option value="raw">Unadjusted</option>
               </select>
             </label>
-            <label className="md:col-span-1">
-              <span className="mb-1 block text-[11px] uppercase tracking-wide text-terminal-muted">Comm bps</span>
-              <input type="number" className="w-full rounded border border-terminal-border bg-terminal-bg px-2 py-1 text-xs" value={executionProfile.commission_bps} onChange={(e) => setExecutionProfile((s) => ({ ...s, commission_bps: Number(e.target.value) }))} />
-            </label>
-            <label className="md:col-span-1">
-              <span className="mb-1 block text-[11px] uppercase tracking-wide text-terminal-muted">Slip bps</span>
-              <input type="number" className="w-full rounded border border-terminal-border bg-terminal-bg px-2 py-1 text-xs" value={executionProfile.slippage_bps} onChange={(e) => setExecutionProfile((s) => ({ ...s, slippage_bps: Number(e.target.value) }))} />
-            </label>
-            <label className="md:col-span-1">
-              <span className="mb-1 block text-[11px] uppercase tracking-wide text-terminal-muted">Spread bps</span>
-              <input type="number" className="w-full rounded border border-terminal-border bg-terminal-bg px-2 py-1 text-xs" value={executionProfile.spread_bps} onChange={(e) => setExecutionProfile((s) => ({ ...s, spread_bps: Number(e.target.value) }))} />
-            </label>
-            <label className="md:col-span-1">
-              <span className="mb-1 block text-[11px] uppercase tracking-wide text-terminal-muted">Impact bps</span>
-              <input type="number" className="w-full rounded border border-terminal-border bg-terminal-bg px-2 py-1 text-xs" value={executionProfile.market_impact_bps} onChange={(e) => setExecutionProfile((s) => ({ ...s, market_impact_bps: Number(e.target.value) }))} />
-            </label>
+          </div>
+          <div className="mt-2 rounded border border-terminal-border/60 bg-terminal-bg/60 p-2">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-terminal-accent">Execution Profile</div>
+                <div className="text-[10px] text-terminal-muted">Slippage, spread, market impact, and market-volume participation cap.</div>
+              </div>
+              <span className="rounded border border-terminal-border px-2 py-0.5 text-[10px] uppercase text-terminal-muted">{market}</span>
+            </div>
+            <div className="grid grid-cols-1 gap-2 text-xs md:grid-cols-6">
+              <label>
+                <span className="mb-1 block text-[11px] uppercase tracking-wide text-terminal-muted">Slippage Model</span>
+                <select className="w-full rounded border border-terminal-border bg-terminal-bg px-2 py-1 text-xs" value={executionProfile.slippage_model} onChange={(e) => setExecutionProfile((s) => ({ ...s, slippage_model: e.target.value as ExecutionSlippageModel }))}>
+                  <option value="fixed_bps">Fixed BPS</option>
+                  <option value="volume_weighted">Volume-weighted</option>
+                  <option value="impact_curve">Impact curve</option>
+                </select>
+              </label>
+              <label>
+                <span className="mb-1 block text-[11px] uppercase tracking-wide text-terminal-muted">Comm bps</span>
+                <input type="number" min={0} step={0.25} className="w-full rounded border border-terminal-border bg-terminal-bg px-2 py-1 text-xs" value={executionProfile.commission_bps} onChange={(e) => setExecutionProfile((s) => ({ ...s, commission_bps: Number(e.target.value) }))} />
+              </label>
+              <label>
+                <span className="mb-1 block text-[11px] uppercase tracking-wide text-terminal-muted">Slip bps</span>
+                <input type="number" min={0} step={0.25} className="w-full rounded border border-terminal-border bg-terminal-bg px-2 py-1 text-xs" value={executionProfile.slippage_bps} onChange={(e) => setExecutionProfile((s) => ({ ...s, slippage_bps: Number(e.target.value) }))} />
+              </label>
+              <label>
+                <span className="mb-1 block text-[11px] uppercase tracking-wide text-terminal-muted">Spread bps</span>
+                <input type="number" min={0} step={0.25} className="w-full rounded border border-terminal-border bg-terminal-bg px-2 py-1 text-xs" value={executionProfile.spread_bps} onChange={(e) => setExecutionProfile((s) => ({ ...s, spread_bps: Number(e.target.value) }))} />
+              </label>
+              <label>
+                <span className="mb-1 block text-[11px] uppercase tracking-wide text-terminal-muted">Impact bps</span>
+                <input type="number" min={0} step={0.25} className="w-full rounded border border-terminal-border bg-terminal-bg px-2 py-1 text-xs" value={executionProfile.market_impact_bps} onChange={(e) => setExecutionProfile((s) => ({ ...s, market_impact_bps: Number(e.target.value) }))} />
+              </label>
+              <label>
+                <span className="mb-1 block text-[11px] uppercase tracking-wide text-terminal-muted">% Volume Cap</span>
+                <input type="number" min={0.1} max={100} step={0.5} className="w-full rounded border border-terminal-border bg-terminal-bg px-2 py-1 text-xs" value={executionProfile.volume_cap_pct} onChange={(e) => setExecutionProfile((s) => ({ ...s, volume_cap_pct: Number(e.target.value) }))} />
+              </label>
+            </div>
           </div>
           {strategyMode !== CUSTOM_STRATEGY_VALUE && activePreset && <div className="mt-2"><span className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase" style={{ backgroundColor: `${CATEGORY_COLORS[activePreset.category] ?? terminalColors.accent}22`, color: CATEGORY_COLORS[activePreset.category] ?? terminalColors.accent, border: `1px solid ${CATEGORY_COLORS[activePreset.category] ?? terminalColors.accent}44` }}>{activePreset.category}</span></div>}
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px]"><div className="rounded border border-terminal-border/60 bg-terminal-bg px-2 py-1 text-terminal-muted">{strategyMode === CUSTOM_STRATEGY_VALUE ? "Custom script mode: define generate_signals(df, context)." : activePreset?.description}</div><div className="rounded border border-terminal-border/60 bg-terminal-bg px-2 py-1 text-terminal-muted">Model allocation: {(modelAllocation * 100).toFixed(0)}%</div><div className="flex items-center gap-2"><span className="text-terminal-muted">Run ID: {runId || "-"}</span><span className="text-terminal-muted">Status: {jobState.toUpperCase()}</span><button type="button" className="rounded border border-terminal-accent bg-terminal-accent/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-terminal-accent disabled:opacity-50" onClick={() => void submit()} disabled={!canSubmit}>{submitInFlight ? "Submitting..." : (jobState === "queued" || jobState === "running" ? "Running..." : "Run")}</button></div></div>

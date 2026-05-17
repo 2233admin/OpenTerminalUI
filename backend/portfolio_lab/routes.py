@@ -63,3 +63,12 @@ async def run_status(run_id: str) -> PortfolioRunStatus:
 @router.get("/portfolio-lab/runs/{run_id}/report", response_model=PortfolioReport)
 async def run_report(run_id: str, force_refresh: bool = Query(default=False)) -> PortfolioReport:
     return PortfolioReport(**(await get_portfolio_lab_service().get_report(run_id, force_refresh=force_refresh)))
+
+
+@router.get("/portfolio-lab/leaderboard")
+async def portfolio_lab_leaderboard(
+    sort_by: str = Query(default="sharpe"),
+    descending: bool = Query(default=True),
+    limit: int = Query(default=50, ge=1, le=250),
+) -> dict:
+    return await get_portfolio_lab_service().leaderboard(sort_by=sort_by, descending=descending, limit=limit)

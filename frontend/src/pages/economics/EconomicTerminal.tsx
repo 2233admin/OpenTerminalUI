@@ -51,7 +51,7 @@ export function EconomicTerminal() {
 
   const { data: macro, isLoading: loadingMacro } = useQuery({
     queryKey: ["macro-indicators"],
-    queryFn: fetchMacroIndicators,
+    queryFn: () => fetchMacroIndicators(),
     refetchInterval: 600_000
   });
 

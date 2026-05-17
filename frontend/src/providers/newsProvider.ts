@@ -28,7 +28,7 @@ function toNewsItem(row: NewsApiItem): NewsItem {
     source: String(row.source || "News"),
     headline,
     summary: row.summary || undefined,
-    publishedAt: row.publishedAt,
+    publishedAt: row.publishedAt || row.published_at,
     url: row.url,
   };
 }

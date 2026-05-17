@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Iterable
 
 import pandas as pd
 
@@ -71,6 +72,72 @@ def multi_stage_fcff_dcf(inputs: DcfInputs) -> dict:
         "pv_terminal_value": pv_terminal,
         "projection_df": pd.DataFrame(projected_rows),
     }
+
+
+def build_sensitivity_table(
+    base_fcf: float,
+    years: int,
+    growth_rate: float,
+    discount_rates: Iterable[float],
+    terminal_growth_rates: Iterable[float],
+    net_debt: float = 0.0,
+    shares_outstanding: float | None = None,
+) -> pd.DataFrame:
+    rows: list[dict] = []
+    for disc in discount_rates:
+        row: dict[str, float | str | None] = {"discount_rate": disc}
+        for tg in terminal_growth_rates:
+            try:
+                result = multi_stage_fcff_dcf(
+                    DcfInputs(
+                        base_fcf=base_fcf,
+                        stages=[DcfStage(years=years, growth_rate=growth_rate, discount_rate=disc)],
+                        terminal_growth=tg,
+                        net_debt=net_debt,
+                        shares_outstanding=shares_outstanding,
+                    )
+                )
+                row[f"tg_{tg:.3f}"] = result["per_share_value"] or result["equity_value"]
+            except Exception:
+                row[f"tg_{tg:.3f}"] = None
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def run_dcf_scenarios(
+    base_fcf: float,
+    years: int,
+    net_debt: float,
+    shares_outstanding: float | None,
+    bull: tuple[float, float, float],
+    base: tuple[float, float, float],
+    bear: tuple[float, float, float],
+) -> pd.DataFrame:
+    scenario_specs = {"bull": bull, "base": base, "bear": bear}
+    rows: list[dict] = []
+    for name, spec in scenario_specs.items():
+        growth, discount, terminal_growth = spec
+        result = multi_stage_fcff_dcf(
+            DcfInputs(
+                base_fcf=base_fcf,
+                stages=[DcfStage(years=years, growth_rate=growth, discount_rate=discount)],
+                terminal_growth=terminal_growth,
+                net_debt=net_debt,
+                shares_outstanding=shares_outstanding,
+            )
+        )
+        rows.append(
+            {
+                "scenario": name,
+                "growth_rate": growth,
+                "discount_rate": discount,
+                "terminal_growth": terminal_growth,
+                "enterprise_value": result["enterprise_value"],
+                "equity_value": result["equity_value"],
+                "per_share_value": result["per_share_value"],
+            }
+        )
+    return pd.DataFrame(rows)
 
 
 def reverse_dcf_implied_growth(

@@ -115,7 +115,7 @@ export function TradeJournalPage() {
   });
   const calendarQuery = useQuery({
     queryKey: ["journal", "calendar"],
-    queryFn: fetchJournalCalendar,
+    queryFn: () => fetchJournalCalendar(),
   });
 
   const entries = entriesQuery.data ?? [];

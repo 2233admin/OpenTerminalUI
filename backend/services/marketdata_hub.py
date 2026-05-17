@@ -320,7 +320,7 @@ class MarketDataHub:
             await self._sync_stream_subscriptions()
 
     async def _market_status_loop(self) -> None:
-        from backend.api.routes.reports import market_status
+        from backend.reports.routes import market_status
         while self._running:
             try:
                 # Fetch fresh market status (indices, market state, etc)
