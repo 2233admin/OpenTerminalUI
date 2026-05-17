@@ -110,7 +110,7 @@ test("ctrl+t opens paper hotkey trading widget and submits a mock buy order", as
 
   const widget = page.getByTestId("hotkey-panel-float");
   await expect(widget).toBeVisible();
-  await expect(widget.getByText("Paper")).toBeVisible();
+  await expect(widget.getByText("Paper", { exact: true })).toBeVisible();
   await expect(widget.getByTestId("hotkey-symbol")).toContainText("RELIANCE");
   await expect(widget.locator("select")).toHaveValue("paper-1");
 
