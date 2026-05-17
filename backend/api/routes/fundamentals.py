@@ -65,7 +65,14 @@ async def corporate_actions(ticker: str) -> dict:
 @router.get("/stocks/{ticker}/analyst-consensus")
 async def analyst_consensus(ticker: str) -> dict:
     fetcher = await get_unified_fetcher()
-    return await fetcher.fetch_analyst_consensus(ticker.strip().upper())
+    symbol = ticker.strip().upper()
+    # fetch_analyst_consensus returns Finnhub's recommendation-trends list;
+    # wrap it so the response is a dict (the declared/expected response shape).
+    trends = await fetcher.fetch_analyst_consensus(symbol)
+    return {
+        "ticker": symbol,
+        "recommendation_trends": trends if isinstance(trends, list) else [],
+    }
 
 
 def _normalize_symbol(symbol: str) -> str:

@@ -124,7 +124,7 @@ test("correlation dashboard renders matrix, rolling, and clusters", async ({ pag
   await expect(page.locator('[data-testid="correlation-matrix-heatmap"] svg rect').first()).toBeVisible({ timeout: 15_000 });
 
   await page.getByRole("button", { name: "Rolling" }).click();
-  await expect(page.getByText("Rolling Correlation")).toBeVisible();
+  await expect(page.getByText("Rolling Correlation", { exact: true })).toBeVisible();
   await expect(page.getByTestId("correlation-rolling-chart")).toBeVisible();
 
   await page.getByRole("button", { name: "Clusters" }).click();

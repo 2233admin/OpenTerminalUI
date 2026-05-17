@@ -30,7 +30,7 @@ test("backtesting tabs and compare panel render with mocked jobs", async ({ page
     .filter({ has: page.locator(".ot-type-panel-title", { hasText: "Backtest Visualizations" }) })
     .first();
 
-  const modelSelect = page.locator("label:has-text('Model') select");
+  const modelSelect = page.getByRole("combobox", { name: "Model", exact: true });
   await expect(modelSelect).toContainText("Premarket + ORB Breakout");
   await modelSelect.selectOption("premarket_orb_breakout");
   await expect(page.getByText("breakout", { exact: true })).toBeVisible();

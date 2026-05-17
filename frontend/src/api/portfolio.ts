@@ -216,7 +216,7 @@ export async function fetchCorrelationMatrix(payload: {
   period?: string;
   frequency?: string;
 }): Promise<CorrelationMatrixResponse> {
-  const { data } = await api.post<CorrelationMatrixResponse>("/portfolio/analytics/correlation-matrix", payload);
+  const { data } = await api.post<CorrelationMatrixResponse>("/correlation/matrix", payload);
   return data;
 }
 
@@ -229,7 +229,7 @@ export async function fetchRollingCorrelation(payload: {
   symbol2?: string;
   period?: string;
 }): Promise<CorrelationRollingResponse> {
-  const { data } = await api.post<CorrelationRollingResponse>("/portfolio/analytics/rolling-correlation", payload);
+  const { data } = await api.post<CorrelationRollingResponse>("/correlation/rolling", payload);
   return data;
 }
 
@@ -239,6 +239,6 @@ export async function fetchCorrelationClusters(payload: {
   period?: string;
   n_clusters?: number;
 }): Promise<CorrelationClustersResponse> {
-  const { data } = await api.post<CorrelationClustersResponse>("/portfolio/analytics/correlation-clusters", payload);
+  const { data } = await api.post<CorrelationClustersResponse>("/correlation/clusters", payload);
   return data;
 }

@@ -12,22 +12,25 @@ import type {
 } from "./types";
 
 export async function fetchJournalEntries(params?: JournalListFilters & { limit?: number; offset?: number }): Promise<JournalEntry[]> {
-  const { data } = await api.get<{ items: JournalEntry[] }>("/journal/entries", { params });
-  return Array.isArray(data?.items) ? data.items : [];
+  const { tags, ...rest } = params ?? {};
+  const { data } = await api.get<{ entries: JournalEntry[] }>("/journal", {
+    params: { ...rest, tags: Array.isArray(tags) ? tags.join(",") : tags },
+  });
+  return Array.isArray(data?.entries) ? data.entries : [];
 }
 
 export async function createJournalEntry(payload: JournalEntryPayload | Partial<JournalEntry>): Promise<JournalEntry> {
-  const { data } = await api.post<JournalEntry>("/journal/entries", payload);
-  return data;
+  const { data } = await api.post<{ entry: JournalEntry }>("/journal", payload);
+  return data.entry;
 }
 
 export async function updateJournalEntry(id: string | number, payload: JournalEntryUpdatePayload | Partial<JournalEntry>): Promise<JournalEntry> {
-  const { data } = await api.put<JournalEntry>(`/journal/entries/${encodeURIComponent(id)}`, payload);
-  return data;
+  const { data } = await api.put<{ entry: JournalEntry }>(`/journal/${encodeURIComponent(id)}`, payload);
+  return data.entry;
 }
 
 export async function deleteJournalEntry(id: string | number): Promise<void> {
-  await api.delete(`/journal/entries/${encodeURIComponent(id)}`);
+  await api.delete(`/journal/${encodeURIComponent(id)}`);
 }
 
 export async function fetchJournalStats(): Promise<JournalStats> {
@@ -36,11 +39,11 @@ export async function fetchJournalStats(): Promise<JournalStats> {
 }
 
 export async function fetchJournalEquityCurve(): Promise<JournalEquityPoint[]> {
-  const { data } = await api.get<{ items: JournalEquityPoint[] }>("/journal/equity-curve");
-  return Array.isArray(data?.items) ? data.items : [];
+  const { data } = await api.get<{ points: JournalEquityPoint[] }>("/journal/equity-curve");
+  return Array.isArray(data?.points) ? data.points : [];
 }
 
 export async function fetchJournalCalendar(month?: number, year?: number): Promise<JournalCalendarDay[]> {
-  const { data } = await api.get<{ items: JournalCalendarDay[] }>("/journal/calendar", { params: { month, year } });
-  return Array.isArray(data?.items) ? data.items : [];
+  const { data } = await api.get<{ days: JournalCalendarDay[] }>("/journal/calendar", { params: { month, year } });
+  return Array.isArray(data?.days) ? data.days : [];
 }

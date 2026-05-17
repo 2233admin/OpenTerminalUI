@@ -45,9 +45,12 @@ def get_current_user(
     if existing is not None:
         return existing
 
-    # Keep test/dev behavior aligned with middleware toggle so endpoint tests that
-    # patch AUTH_MIDDLEWARE_ENABLED=0 don't fail on direct dependency auth.
-    if os.environ.get("AUTH_MIDDLEWARE_ENABLED", "1") != "1" and str(getattr(request.url, "path", "")).startswith("/api/risk"):
+    # Keep test/dev behavior aligned with the middleware toggle: when the auth
+    # middleware is disabled (unit tests / e2e), endpoint-level dependency auth
+    # must not 401 either. Otherwise an unauthenticated call fails, the frontend
+    # treats the 401 as a session expiry, refreshes the (dev) token, fails, and
+    # logs the user out -- breaking every page that calls an authed endpoint.
+    if os.environ.get("AUTH_MIDDLEWARE_ENABLED", "1") != "1":
         user = User(
             id="dev-user",
             email="dev@example.com",
