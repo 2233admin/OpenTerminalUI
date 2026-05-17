@@ -1,5 +1,5 @@
 name: sector_rotation_monitor
-version: 0.2.0
+version: 0.3.0
 author: OpenTerminalUI
 description: Tracks sector ETF relative strength and suggests rotation
 dependencies: []
