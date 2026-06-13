@@ -12,6 +12,17 @@ _LIMIT_RE = re.compile(r"\bLIMIT\s+(\d+)\b", re.IGNORECASE)
 
 @dataclass
 class ParsedQuery:
+    """
+    Structure representing a parsed scanner query, split into filters, sorting, and limits.
+
+    Attributes:
+        raw (str): The original raw query input text.
+        normalized (str): The normalized and parsed Python-evaluable filter expression.
+        filter_expr (str): Identical to normalized, representing the filter expression.
+        sort_by (str | None): Canonical column name to sort by, or None if not specified.
+        sort_order (str): 'asc' or 'desc'. Defaults to 'desc'.
+        limit (int | None): The maximum number of results to return, or None if not specified.
+    """
     raw: str
     normalized: str
     filter_expr: str
@@ -21,6 +32,9 @@ class ParsedQuery:
 
 
 def _strip_comments(query: str) -> str:
+    """
+    Removes comments starting with '//' from the query text.
+    """
     lines = []
     for line in query.splitlines():
         clean = line.strip()
@@ -31,10 +45,19 @@ def _strip_comments(query: str) -> str:
 
 
 def _strip_time_qualifiers(query: str) -> str:
+    """
+    Strips timeframe qualifiers formatted as [timeframe] (e.g., [1d], [15m]) from fields.
+    """
     return re.sub(r"\[[^\]]+\]", "", query)
 
 
 def _replace_between(expr: str) -> str:
+    """
+    Converts SQL-like 'BETWEEN lower AND upper' expressions to explicit compound comparisons.
+
+    Example:
+        'price BETWEEN 100 AND 200' -> '(price >= 100 and price <= 200)'
+    """
     pattern = re.compile(
         r"\b([A-Za-z_][A-Za-z0-9_]*)\s+BETWEEN\s+([^\s\)]+)\s+AND\s+([^\s\)]+)",
         re.IGNORECASE,
@@ -53,6 +76,11 @@ def _replace_between(expr: str) -> str:
 
 
 def _normalize_ops(expr: str) -> str:
+    """
+    Translates standard comparison/logical operators to standard Python operators.
+
+    Converts '<>' to '!=', single '=' to '==', and 'AND', 'OR', 'NOT' to lowercase.
+    """
     expr = expr.replace("<>", "!=")
     expr = re.sub(r"(?<![<>=!])=(?!=)", "==", expr)
     expr = re.sub(r"\bAND\b", "and", expr, flags=re.IGNORECASE)
@@ -62,6 +90,13 @@ def _normalize_ops(expr: str) -> str:
 
 
 def _map_fields(expr: str) -> str:
+    """
+    Resolves human-readable labels/aliases to canonical database or DataFrame column names.
+
+    Uses a two-pass approach:
+    1. Direct exact alias match from field_aliases().
+    2. Fuzzy fallback matching for remaining unmapped terms near operators.
+    """
     aliases = sorted(field_aliases().keys(), key=len, reverse=True)
     updated = expr
     for alias in aliases:
@@ -87,6 +122,18 @@ def _map_fields(expr: str) -> str:
 
 
 def parse_query(query: str) -> ParsedQuery:
+    """
+    Parses a scanner query string containing filter expressions, sorting, and limits.
+
+    Processes comments, timeframe qualifiers, alias mapping, SQL-to-python operators,
+    extracts the ORDER BY field/order, and extracts the LIMIT quantity.
+
+    Args:
+        query (str): The raw text query string.
+
+    Returns:
+        ParsedQuery: The structured ParsedQuery object containing resolved filters, sort, and limits.
+    """
     clean = _strip_time_qualifiers(_strip_comments(query or "")).strip()
     sort_by: str | None = None
     sort_order = "desc"

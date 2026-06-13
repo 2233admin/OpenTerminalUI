@@ -45,6 +45,8 @@ const LaunchpadPage = lazyWithRetry(() => import("./pages/Launchpad").then((m) =
 const LaunchpadPopoutPage = lazyWithRetry(() => import("./pages/LaunchpadPopout").then((m) => ({ default: m.LaunchpadPopoutPage })));
 const SplitComparisonPage = lazyWithRetry(() => import("./pages/SplitComparison").then((m) => ({ default: m.SplitComparisonPage })));
 const YieldCurveDashboard = lazyWithRetry(() => import("./pages/fixed-income/YieldCurveDashboard").then((m) => ({ default: m.YieldCurveDashboard })));
+const BondAnalyticsCalculator = lazyWithRetry(() => import("./pages/fixed-income/BondAnalyticsCalculator").then((m) => ({ default: m.BondAnalyticsCalculator })));
+const OptionGreeksCalculator = lazyWithRetry(() => import("./pages/fixed-income/OptionGreeksCalculator").then((m) => ({ default: m.OptionGreeksCalculator })));
 const EconomicTerminal = lazyWithRetry(() => import("./pages/economics/EconomicTerminal").then((m) => ({ default: m.EconomicTerminal })));
 const SectorRotationPage = lazyWithRetry(() => import("./pages/SectorRotation").then((m) => ({ default: m.SectorRotationPage })));
 const CryptoWorkspacePage = lazyWithRetry(() => import("./pages/CryptoWorkspace").then((m) => ({ default: m.CryptoWorkspacePage })));
@@ -78,6 +80,7 @@ const ModelLabExperimentDetailPage = lazyWithRetry(() => import("./pages/ModelLa
 const ModelLabRunReportPage = lazyWithRetry(() => import("./pages/ModelLabRunReport").then((m) => ({ default: m.ModelLabRunReportPage })));
 const ModelLabComparePage = lazyWithRetry(() => import("./pages/ModelLabCompare").then((m) => ({ default: m.ModelLabComparePage })));
 const ModelGovernancePage = lazyWithRetry(() => import("./pages/ModelGovernance").then((m) => ({ default: m.ModelGovernancePage })));
+const AlgorithmFrameworkLab = lazyWithRetry(() => import("./pages/AlgorithmFrameworkLab").then((m) => ({ default: m.AlgorithmFrameworkLab })));
 
 const PortfolioLabPage = lazyWithRetry(() => import("./pages/PortfolioLab").then((m) => ({ default: m.PortfolioLabPage })));
 const PortfolioLabDetailPage = lazyWithRetry(() => import("./pages/PortfolioLabDetail").then((m) => ({ default: m.PortfolioLabDetailPage })));
@@ -157,6 +160,8 @@ function App() {
             <Route path="launchpad/popout" element={<LaunchpadPopoutPage />} />
             <Route path="compare" element={<SplitComparisonPage />} />
             <Route path="yield-curve" element={<YieldCurveDashboard />} />
+            <Route path="bond-analytics" element={<BondAnalyticsCalculator />} />
+            <Route path="option-greeks" element={<OptionGreeksCalculator />} />
             <Route path="economics" element={<EconomicTerminal />} />
             <Route path="sector-rotation" element={<SectorRotationPage />} />
             <Route path="crypto" element={<CryptoWorkspacePage />} />
@@ -185,6 +190,7 @@ function App() {
             <Route path="model-lab/runs/:runId" element={<ModelLabRunReportPage />} />
             <Route path="model-lab/compare" element={<ModelLabComparePage />} />
             <Route path="model-governance" element={<ModelGovernancePage />} />
+            <Route path="algorithm-framework" element={<AlgorithmFrameworkLab />} />
           </Route>
 
           <Route path="/account" element={<ProtectedRoute><AccountLayout /></ProtectedRoute>}>

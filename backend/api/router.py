@@ -12,6 +12,7 @@ from backend.api.routes.etf import router as etf_router
 from backend.api.routes.factor_analysis import router as factor_analysis_router
 from backend.api.routes.fixed_income import router as fixed_income_router
 from backend.api.routes.forex import router as forex_router
+from backend.api.routes.framework import router as framework_router
 from backend.api.routes.heatmap import router as heatmap_router
 from backend.api.routes.insider import router as insider_router
 from backend.api.routes.journal import router as journal_router
@@ -77,5 +78,15 @@ api_router.include_router(tearsheet_router, prefix="/api")
 api_router.include_router(factor_ideas_router, prefix="/api")
 api_router.include_router(conviction_router, prefix="/api")
 api_router.include_router(saved_views_router, prefix="/api")
+
+# Fixed income & bonds: these routers already carry their full "/api/..." prefix
+# internally, so include them WITHOUT an extra prefix. (Previously imported but
+# never mounted, leaving every /api/fixed-income/* and /api/bonds/* endpoint a 404.)
+api_router.include_router(fixed_income_router)
+api_router.include_router(bonds_router)
+
+# Lean-inspired Algorithm Framework (modular alpha/PC/risk/execution backtest pipeline).
+# Router carries its own "/api/framework" prefix internally.
+api_router.include_router(framework_router)
 
 __all__ = ["api_router"]

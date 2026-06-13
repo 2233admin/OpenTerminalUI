@@ -5,11 +5,59 @@ from dataclasses import asdict
 from datetime import date, timedelta
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field
 
 from backend.adapters.registry import get_adapter_registry
 from backend.fno.services.option_chain_fetcher import get_option_chain_fetcher
 
 router = APIRouter(prefix="/api/options", tags=["options"])
+
+
+class GreeksRequest(BaseModel):
+    spot: float = Field(..., gt=0)
+    strike: float = Field(..., gt=0)
+    time_to_expiry: float = Field(..., gt=0, description="Years")
+    rate: float = 0.05
+    volatility: float = Field(..., gt=0)
+    dividend_yield: float = 0.0
+    option_type: str = "call"
+
+
+class ImpliedVolRequest(BaseModel):
+    spot: float = Field(..., gt=0)
+    strike: float = Field(..., gt=0)
+    time_to_expiry: float = Field(..., gt=0)
+    rate: float = 0.05
+    dividend_yield: float = 0.0
+    option_type: str = "call"
+    market_price: float = Field(..., gt=0)
+
+
+@router.post("/greeks")
+async def option_greeks(req: GreeksRequest):
+    """Black-Scholes price + Greeks for a European option."""
+    from backend.core.option_greeks import OptionSpec, greeks
+    try:
+        spec = OptionSpec(spot=req.spot, strike=req.strike, time_to_expiry=req.time_to_expiry,
+                          rate=req.rate, volatility=req.volatility,
+                          dividend_yield=req.dividend_yield, option_type=req.option_type)
+        return greeks(spec)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+
+@router.post("/implied-vol")
+async def option_implied_vol(req: ImpliedVolRequest):
+    """Solve Black-Scholes implied volatility from a market price."""
+    from backend.core.option_greeks import OptionSpec, implied_volatility
+    try:
+        spec = OptionSpec(spot=req.spot, strike=req.strike, time_to_expiry=req.time_to_expiry,
+                          rate=req.rate, volatility=0.2,
+                          dividend_yield=req.dividend_yield, option_type=req.option_type)
+        iv = implied_volatility(spec, req.market_price)
+        return {"implied_volatility": round(iv, 6)}
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
 
 
 @router.get("/chain/{underlying}")

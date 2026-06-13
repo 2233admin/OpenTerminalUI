@@ -16,6 +16,7 @@ function BacktestingRightRail() {
     if (location.pathname.includes("/backtesting/model-lab/runs/")) return "Model Lab Run Report";
     if (location.pathname.includes("/backtesting/model-lab")) return "Model Lab";
     if (location.pathname.includes("/backtesting/model-governance")) return "Model Governance";
+    if (location.pathname.includes("/backtesting/algorithm-framework")) return "Algorithm Framework Lab";
     return "Backtesting Console";
   })();
 
@@ -54,6 +55,9 @@ function BacktestingRightRail() {
             </Link>
             <Link to="/backtesting/model-governance" className="rounded-sm border border-terminal-border px-2 py-1 ot-type-label text-terminal-muted hover:text-terminal-text">
               Model Governance
+            </Link>
+            <Link to="/backtesting/algorithm-framework" className="rounded-sm border border-terminal-border px-2 py-1 ot-type-label text-terminal-muted hover:text-terminal-text">
+              Algorithm Framework
             </Link>
           </div>
         </TerminalPanel>

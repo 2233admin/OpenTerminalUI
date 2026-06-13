@@ -6,6 +6,17 @@ from difflib import get_close_matches
 
 @dataclass(frozen=True)
 class FieldMeta:
+    """
+    Metadata describing a queryable/filterable field in the stock screener.
+
+    Attributes:
+        key (str): Canonical database/DataFrame column key (e.g. 'pe', 'market_cap').
+        label (str): User-friendly display label (e.g. 'PE Ratio', 'Market Capitalization').
+        category (str): Category grouping (e.g. 'valuation', 'technical', 'profitability').
+        description (str): Explanatory description of the metric.
+        dtype (str): Data type of the field, 'number' or 'string'. Defaults to 'number'.
+        aliases (tuple[str, ...]): Alternative names/shorthands for mapping query inputs.
+    """
     key: str
     label: str
     category: str
@@ -62,6 +73,12 @@ for field in FIELD_DEFINITIONS:
 
 
 def list_fields() -> list[dict[str, str]]:
+    """
+    Retrieves the complete list of available fields as dictionaries.
+
+    Returns:
+        list[dict[str, str]]: Serialized field metadata definitions.
+    """
     return [
         {
             "key": field.key,
@@ -75,10 +92,28 @@ def list_fields() -> list[dict[str, str]]:
 
 
 def field_aliases() -> dict[str, str]:
+    """
+    Returns the complete alias mapping lookup dictionary.
+
+    Returns:
+        dict[str, str]: Map of lowercased alias/label/key to canonical key.
+    """
     return dict(_ALIAS_TO_KEY)
 
 
 def resolve_field_name(value: str) -> str | None:
+    """
+    Attempts to match an input string (e.g. alias, typo, or user term) to a canonical key.
+
+    Uses an exact lookup first, and falls back to fuzzy matching (difflib)
+    if the similarity meets the 0.84 threshold.
+
+    Args:
+        value (str): The raw string to resolve.
+
+    Returns:
+        str | None: The canonical field key, or None if no match is found.
+    """
     normalized = value.strip().lower()
     if not normalized:
         return None
@@ -92,4 +127,13 @@ def resolve_field_name(value: str) -> str | None:
 
 
 def has_field(name: str) -> bool:
+    """
+    Checks if a canonical field key is registered in the definitions.
+
+    Args:
+        name (str): The field key.
+
+    Returns:
+        bool: True if key is defined, False otherwise.
+    """
     return name in _FIELD_BY_KEY

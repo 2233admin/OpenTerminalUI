@@ -8,6 +8,14 @@ import pandas as pd
 
 @dataclass
 class DcfStage:
+    """
+    Represents a discrete growth stage within a multi-stage DCF model.
+
+    Attributes:
+        years (int): Duration of the stage in years.
+        discount_rate (float): Discount rate (cost of capital) as a decimal (e.g. 0.08 for 8%).
+        growth_rate (float): Estimated growth rate of cash flows as a decimal (e.g. 0.05 for 5%).
+    """
     years: int
     discount_rate: float
     growth_rate: float
@@ -15,6 +23,16 @@ class DcfStage:
 
 @dataclass
 class DcfInputs:
+    """
+    Input parameters required to run a multi-stage Free Cash Flow to Firm (FCFF) DCF valuation.
+
+    Attributes:
+        base_fcf (float): The baseline Free Cash Flow from which projections start.
+        stages (list[DcfStage]): A list of growth stages describing projections over time.
+        terminal_growth (float): Perpetual growth rate of FCF after final stage as a decimal.
+        net_debt (float): Net debt of the firm (total debt minus cash). Defaults to 0.0.
+        shares_outstanding (float | None): Number of shares outstanding to calculate value per share.
+    """
     base_fcf: float
     stages: list[DcfStage]
     terminal_growth: float
@@ -23,11 +41,33 @@ class DcfInputs:
 
 
 def _validate_terminal(discount_rate: float, terminal_growth: float) -> None:
+    """
+    Validates terminal value inputs to prevent math errors or infinite valuations.
+    """
     if discount_rate <= terminal_growth:
         raise ValueError("Discount rate must be greater than terminal growth.")
 
 
 def multi_stage_fcff_dcf(inputs: DcfInputs) -> dict:
+    """
+    Computes a multi-stage Free Cash Flow to Firm (FCFF) Discounted Cash Flow valuation.
+
+    For each stage, projects future cash flows, discounts them back to present value (PV),
+    calculates the Gordon Growth terminal value, discounts it, and aggregates values.
+
+    Args:
+        inputs (DcfInputs): Complete set of parameters for the DCF model.
+
+    Returns:
+        dict: Valuation metrics containing:
+            - enterprise_value (float): Total enterprise value of the firm.
+            - equity_value (float): Implied equity value (enterprise value minus net debt).
+            - per_share_value (float | None): Implied value per share (if shares_outstanding is provided).
+            - pv_fcf_sum (float): Sum of discounted FCFs during stage projection years.
+            - terminal_value (float): Terminal value at the start of terminal period.
+            - pv_terminal_value (float): Present value of the terminal value.
+            - projection_df (pd.DataFrame): DataFrame detailing growth and PV calculations year-by-year.
+    """
     if not inputs.stages:
         raise ValueError("At least one DCF stage is required.")
     _validate_terminal(inputs.stages[-1].discount_rate, inputs.terminal_growth)
@@ -83,6 +123,23 @@ def build_sensitivity_table(
     net_debt: float = 0.0,
     shares_outstanding: float | None = None,
 ) -> pd.DataFrame:
+    """
+    Constructs a sensitivity matrix mapping discount rates and terminal growth rates
+    to implied equity values or values per share.
+
+    Args:
+        base_fcf (float): Baseline FCF.
+        years (int): Number of projection years.
+        growth_rate (float): Stage 1 growth rate.
+        discount_rates (Iterable[float]): List of discount rates to evaluate.
+        terminal_growth_rates (Iterable[float]): List of terminal growth rates to evaluate.
+        net_debt (float): Net debt. Defaults to 0.0.
+        shares_outstanding (float | None): Shares outstanding. Defaults to None.
+
+    Returns:
+        pd.DataFrame: A matrix index by discount_rate, with columns for each terminal growth rate,
+                      mapping to value per share or total equity value.
+    """
     rows: list[dict] = []
     for disc in discount_rates:
         row: dict[str, float | str | None] = {"discount_rate": disc}
@@ -113,6 +170,22 @@ def run_dcf_scenarios(
     base: tuple[float, float, float],
     bear: tuple[float, float, float],
 ) -> pd.DataFrame:
+    """
+    Runs three standard valuation scenarios (Bull, Base, Bear) side-by-side.
+
+    Args:
+        base_fcf (float): Baseline FCF.
+        years (int): Projection period in years.
+        net_debt (float): Firm's net debt.
+        shares_outstanding (float | None): Number of shares outstanding.
+        bull (tuple[float, float, float]): (growth, discount_rate, terminal_growth) for Bull scenario.
+        base (tuple[float, float, float]): (growth, discount_rate, terminal_growth) for Base scenario.
+        bear (tuple[float, float, float]): (growth, discount_rate, terminal_growth) for Bear scenario.
+
+    Returns:
+        pd.DataFrame: Scenario comparison table containing keys: scenario, growth_rate,
+                      discount_rate, terminal_growth, enterprise_value, equity_value, and per_share_value.
+    """
     scenario_specs = {"bull": bull, "base": base, "bear": bear}
     rows: list[dict] = []
     for name, spec in scenario_specs.items():
@@ -148,6 +221,23 @@ def reverse_dcf_implied_growth(
     terminal_growth: float,
     net_debt: float = 0.0,
 ) -> float | None:
+    """
+    Solves for the implied near-term growth rate that justifies a target market equity value.
+
+    Uses binary search to iteratively converge on the growth rate that minimizes the difference
+    between estimated equity value and target_equity_value.
+
+    Args:
+        target_equity_value (float): Market capitalization or target equity value.
+        base_fcf (float): Baseline FCF.
+        years (int): Projection years.
+        discount_rate (float): Discount rate.
+        terminal_growth (float): Perpetual terminal growth rate.
+        net_debt (float): Net debt. Defaults to 0.0.
+
+    Returns:
+        float | None: Implied growth rate as a decimal (e.g. 0.125 for 12.5%).
+    """
     low, high = -0.5, 1.0
     for _ in range(80):
         mid = (low + high) / 2
