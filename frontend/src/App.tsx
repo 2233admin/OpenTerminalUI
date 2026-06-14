@@ -81,6 +81,7 @@ const ModelLabRunReportPage = lazyWithRetry(() => import("./pages/ModelLabRunRep
 const ModelLabComparePage = lazyWithRetry(() => import("./pages/ModelLabCompare").then((m) => ({ default: m.ModelLabComparePage })));
 const ModelGovernancePage = lazyWithRetry(() => import("./pages/ModelGovernance").then((m) => ({ default: m.ModelGovernancePage })));
 const AlgorithmFrameworkLab = lazyWithRetry(() => import("./pages/AlgorithmFrameworkLab").then((m) => ({ default: m.AlgorithmFrameworkLab })));
+const PortfolioOptimizer = lazyWithRetry(() => import("./pages/PortfolioOptimizer").then((m) => ({ default: m.PortfolioOptimizer })));
 
 const PortfolioLabPage = lazyWithRetry(() => import("./pages/PortfolioLab").then((m) => ({ default: m.PortfolioLabPage })));
 const PortfolioLabDetailPage = lazyWithRetry(() => import("./pages/PortfolioLabDetail").then((m) => ({ default: m.PortfolioLabDetailPage })));
@@ -191,6 +192,7 @@ function App() {
             <Route path="model-lab/compare" element={<ModelLabComparePage />} />
             <Route path="model-governance" element={<ModelGovernancePage />} />
             <Route path="algorithm-framework" element={<AlgorithmFrameworkLab />} />
+            <Route path="portfolio-optimizer" element={<PortfolioOptimizer />} />
           </Route>
 
           <Route path="/account" element={<ProtectedRoute><AccountLayout /></ProtectedRoute>}>
