@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: setup setup-backend setup-frontend test test-backend build build-frontend gate forge-init forge-wave forge-check
+.PHONY: setup setup-backend setup-frontend test test-backend build build-frontend gate
 
 setup: setup-backend setup-frontend
 
@@ -21,12 +21,3 @@ build-frontend:
 	cd frontend && npm run build
 
 gate: test-backend build-frontend
-
-forge-init:
-	./scripts/forge init
-
-forge-wave:
-	./scripts/forge run $(WAVE)
-
-forge-check:
-	./scripts/forge run check

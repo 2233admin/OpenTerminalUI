@@ -53,6 +53,8 @@ Thumbs.db
 .claude/
 .codex-run/
 .forge/
+.swarm/
+codex-prompts/
 .codex_tmp_forge_schema/
 AGENTS.md
 CLAUDE.md
