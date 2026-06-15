@@ -612,6 +612,12 @@ def _run_inline_strategy(
             raise ValueError("Inline strategy imports are disabled")
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in {"open", "exec", "eval", "compile", "__import__"}:
             raise ValueError(f"Inline strategy blocked call: {node.func.id}")
+        # Block dunder traversal (e.g. ().__class__.__base__.__subclasses__()),
+        # which reaches arbitrary loaded classes and escapes the sandbox -> RCE.
+        if isinstance(node, ast.Attribute) and "__" in node.attr:
+            raise ValueError(f"Inline strategy blocked attribute access: {node.attr}")
+        if isinstance(node, ast.Name) and "__" in node.id:
+            raise ValueError(f"Inline strategy blocked name: {node.id}")
     safe_builtins = {
         "abs": abs,
         "all": all,

@@ -47,6 +47,13 @@ def _validate_code(code: str) -> None:
             root = (node.module or "").split(".")[0]
             if root in _BLOCKED_MODULES:
                 raise HTTPException(status_code=400, detail=f"Import blocked: {root}")
+        # Block dunder access. Restricting __builtins__ and imports is not enough:
+        # `().__class__.__base__.__subclasses__()` traverses to arbitrary loaded
+        # classes (e.g. subprocess.Popen) and escapes the sandbox -> RCE.
+        if isinstance(node, ast.Attribute) and "__" in node.attr:
+            raise HTTPException(status_code=400, detail=f"Attribute access blocked: {node.attr}")
+        if isinstance(node, ast.Name) and "__" in node.id:
+            raise HTTPException(status_code=400, detail=f"Name access blocked: {node.id}")
 
 
 def _run_user_code(code: str) -> PythonExecuteResponse:
