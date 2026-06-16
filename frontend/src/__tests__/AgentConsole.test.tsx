@@ -27,7 +27,10 @@ describe("AgentConsole", () => {
     expect(screen.getByRole("dialog", { name: /agent console/i })).toBeInTheDocument();
     expect(screen.getByText("find cheap stocks")).toBeInTheDocument();
     expect(screen.getByText("Top pick: AAPL")).toBeInTheDocument();
-    expect(screen.getByText(/screen_stocks/)).toBeInTheDocument();
+    // The tool name appears both in the step trace ("→ ran screen_stocks")
+    // and the artifact header — both are legitimate, so allow multiple matches.
+    expect(screen.getAllByText(/screen_stocks/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/ran\s+screen_stocks/)).toBeInTheDocument();
     expect(screen.getByText("AAPL")).toBeInTheDocument();
   });
 

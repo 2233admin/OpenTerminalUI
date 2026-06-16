@@ -13,14 +13,12 @@ export function ChatThread({ messages }: { messages: AgentMessage[] }) {
               {m.steps.map((s) => (
                 <li
                   key={s.id}
-                  data-tool-name={s.name}
-                  aria-label={`${s.isError ? "failed" : "ran"} ${s.name}`}
                   style={{
                     fontFamily: "var(--ot-font-data)", fontSize: 11,
                     color: s.isError ? "var(--ot-color-feedback-error)" : "var(--ot-color-text-secondary)",
                   }}
                 >
-                  {s.isError ? "✗ failed" : "→ ran tool"}
+                  {s.isError ? "✗ failed " : "→ ran "}{s.name}
                 </li>
               ))}
             </ul>
