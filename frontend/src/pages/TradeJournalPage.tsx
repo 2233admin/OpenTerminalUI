@@ -537,7 +537,8 @@ export function TradeJournalPage() {
         ) : null}
       </TerminalPanel>
 
-      <div className="fixed bottom-6 right-6 z-20">
+      {/* Offset above the global agent launcher (bottom-right FAB) so both stay clickable. */}
+      <div className="fixed bottom-24 right-6 z-20">
         <TerminalButton
           type="button"
           variant="accent"
