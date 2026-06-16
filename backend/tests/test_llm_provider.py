@@ -29,3 +29,60 @@ def test_tool_def_wire_shape():
     wire = td.to_wire()
     assert wire["type"] == "function"
     assert wire["function"]["name"] == "get_quote"
+
+
+import pytest
+import httpx
+from backend.services.llm.openai_compatible import OpenAICompatibleProvider
+
+
+def _mock_transport(captured: dict, response_json: dict):
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["url"] = str(request.url)
+        captured["headers"] = dict(request.headers)
+        captured["body"] = request.read().decode()
+        return httpx.Response(200, json=response_json)
+    return httpx.MockTransport(handler)
+
+
+@pytest.mark.asyncio
+async def test_complete_parses_tool_calls():
+    captured: dict = {}
+    resp = {"choices": [{"message": {"content": None, "tool_calls": [
+        {"id": "call_1", "type": "function",
+         "function": {"name": "get_quote", "arguments": '{"ticker": "AAPL"}'}}]}}]}
+    provider = OpenAICompatibleProvider(
+        base_url="https://x/api/v1", api_key="sk-test", model="m",
+        transport=_mock_transport(captured, resp),
+    )
+    out = await provider.complete([LLMMessage(role="user", content="quote AAPL")],
+                                  tools=[ToolDef("get_quote", "q", {"type": "object"})])
+    assert out.tool_calls[0].name == "get_quote"
+    assert out.tool_calls[0].arguments == {"ticker": "AAPL"}
+    assert "Bearer sk-test" in captured["headers"]["authorization"]
+
+
+@pytest.mark.asyncio
+async def test_complete_parses_plain_content():
+    resp = {"choices": [{"message": {"content": "AAPL looks fine", "tool_calls": None}}]}
+    provider = OpenAICompatibleProvider(
+        base_url="https://x/api/v1", api_key=None, model="m",
+        transport=_mock_transport({}, resp),
+    )
+    out = await provider.complete([LLMMessage(role="user", content="hi")])
+    assert out.content == "AAPL looks fine"
+    assert out.tool_calls == []
+
+
+@pytest.mark.asyncio
+async def test_http_error_raises_llmerror():
+    from backend.services.llm.base import LLMError
+
+    def handler(request):
+        return httpx.Response(500, json={"error": "boom"})
+    provider = OpenAICompatibleProvider(
+        base_url="https://x/api/v1", api_key="k", model="m",
+        transport=httpx.MockTransport(handler),
+    )
+    with pytest.raises(LLMError):
+        await provider.complete([LLMMessage(role="user", content="hi")])
