@@ -16,34 +16,59 @@ _AGENT_SCREEN_FIELDS = (
 
 
 async def screen_stocks(args: dict[str, Any]) -> dict[str, Any]:
-    """Run the platform screener from a natural filter string."""
+    """Run the platform screener from a natural filter string.
+
+    Always returns a structured result (never raises) so the agent can reason
+    over it even when data is unavailable — a failed tool call would just abort
+    the run. Errors/empties come back as ``count: 0`` with a ``note``.
+    """
     query = str(args.get("query", ""))
     universe = str(args.get("universe", "nse_500"))
     market = str(args.get("market", "IN"))
-    limit = int(args.get("limit", 25))
+    try:
+        limit = max(1, min(100, int(args.get("limit", 25))))
+    except (TypeError, ValueError):
+        limit = 25
 
-    # The screener reads a materialized store that is populated lazily. The HTTP
-    # route hydrates before running; the agent tool must do the same or it always
-    # returns zero rows on a cold/partial universe.
+    def _empty(note: str, hydrated: int = 0) -> dict[str, Any]:
+        return {
+            "query": query, "market": market, "universe": universe,
+            "count": 0, "hydrated_rows": hydrated, "results": [], "note": note,
+        }
+
+    # The screener reads a materialized store populated lazily. The HTTP route
+    # hydrates before running; the agent tool must too, but bounded — a slow or
+    # blocked data source must not hang or fail the run.
     hydrated = 0
     try:
         hydrated = await _hydrate_missing_universe_rows(universe, market)
-    except Exception:
+    except Exception:  # noqa: BLE001 - hydration is best-effort
         hydrated = 0
 
-    config = RunConfig(query=query, universe=universe, market=market, limit=limit)
-    result = ScreenerEngine().run(config)
+    try:
+        config = RunConfig(query=query, universe=universe, market=market, limit=limit)
+        result = ScreenerEngine().run(config)
+    except Exception as exc:  # noqa: BLE001 - never fail the agent tool
+        return _empty(f"Screener could not run: {exc}", hydrated)
 
     rows = result.get("results", []) if isinstance(result, dict) else []
     trimmed = [{k: row.get(k) for k in _AGENT_SCREEN_FIELDS if k in row} for row in rows]
-    return {
+    count = int(result.get("total_results", len(trimmed))) if isinstance(result, dict) else len(trimmed)
+    payload = {
         "query": result.get("query_parsed", query) if isinstance(result, dict) else query,
         "market": market,
         "universe": universe,
-        "count": int(result.get("total_results", len(trimmed))) if isinstance(result, dict) else len(trimmed),
+        "count": count,
         "hydrated_rows": hydrated,
         "results": trimmed,
     }
+    if count == 0:
+        payload["note"] = (
+            "No matches. Data for this universe may be unavailable in this "
+            "environment (e.g. NSE/India sources), or the filter is too strict. "
+            "Try market='US', universe='sp_500', or relax the criteria."
+        )
+    return payload
 
 
 async def get_stock_snapshot(args: dict[str, Any]) -> dict[str, Any]:
