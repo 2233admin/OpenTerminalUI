@@ -28,6 +28,8 @@ export async function streamRun(
   try {
     resp = await fetch(`${API_BASE}/agent/runs/${runId}/stream`, { headers, signal });
   } catch (err) {
+    // A user-initiated abort is not an error to surface in the UI.
+    if (signal?.aborted) return;
     onEvent({ type: "error", message: (err as Error).message || "network error" });
     return;
   }
