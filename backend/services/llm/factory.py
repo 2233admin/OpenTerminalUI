@@ -26,6 +26,8 @@ def get_llm_provider(
                 "HTTP-Referer": "https://openterminalui.local",
                 "X-Title": "OpenTerminalUI Agent",
             },
+            # Free models are flaky (429/404); try the configured free chain.
+            fallback_models=[m for m in (settings.agent_fallback_models or []) if m != (model or settings.agent_model)],
         )
     if provider == "openai":
         return OpenAICompatibleProvider(

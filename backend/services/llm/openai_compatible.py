@@ -23,6 +23,7 @@ class OpenAICompatibleProvider:
         timeout: float = 120.0,
         extra_headers: dict[str, str] | None = None,
         transport: httpx.BaseTransport | None = None,
+        fallback_models: list[str] | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
@@ -30,6 +31,7 @@ class OpenAICompatibleProvider:
         self.timeout = timeout
         self.extra_headers = extra_headers or {}
         self._transport = transport  # injected in tests
+        self.fallback_models = fallback_models or []
 
     def _headers(self) -> dict[str, str]:
         headers = {"Content-Type": "application/json", **self.extra_headers}
@@ -46,7 +48,6 @@ class OpenAICompatibleProvider:
         max_tokens: int = 1024,
     ) -> AssistantMessage:
         payload: dict[str, Any] = {
-            "model": self.model,
             "messages": [m.to_wire() for m in messages],
             "temperature": temperature,
             "max_tokens": max_tokens,
@@ -56,30 +57,37 @@ class OpenAICompatibleProvider:
             payload["tools"] = [t.to_wire() for t in tools]
             payload["tool_choice"] = "auto"
         url = f"{self.base_url}/chat/completions"
-        # Free/shared providers (e.g. OpenRouter :free models) return 429 or 5xx
-        # under load; retry a couple of times with backoff before giving up.
+
+        # Try the primary model, then any fallbacks (free models are flaky:
+        # 429 = rate-limited, 404 = unavailable). Each model gets a short
+        # retry/backoff for transient 429/5xx before moving to the next.
+        candidates = [self.model] + [m for m in self.fallback_models if m != self.model]
         last_exc: Exception | None = None
-        for attempt in range(3):
-            try:
-                async with httpx.AsyncClient(
-                    timeout=self.timeout, trust_env=False, transport=self._transport
-                ) as client:
-                    resp = await client.post(url, json=payload, headers=self._headers())
-                    resp.raise_for_status()
-                    return self._parse(resp.json())
-            except httpx.HTTPStatusError as exc:
-                status = exc.response.status_code if exc.response is not None else 0
-                last_exc = LLMError(f"LLM HTTP {status}")
-                if status in (429, 500, 502, 503, 504) and attempt < 2:
-                    await asyncio.sleep(1.5 * (attempt + 1))
-                    continue
-                raise last_exc from exc
-            except (httpx.HTTPError, ValueError) as exc:
-                last_exc = LLMError(f"LLM request failed: {exc}")
-                if attempt < 2:
-                    await asyncio.sleep(1.0 * (attempt + 1))
-                    continue
-                raise last_exc from exc
+        for model in candidates:
+            payload["model"] = model
+            for attempt in range(3):
+                try:
+                    async with httpx.AsyncClient(
+                        timeout=self.timeout, trust_env=False, transport=self._transport
+                    ) as client:
+                        resp = await client.post(url, json=payload, headers=self._headers())
+                        resp.raise_for_status()
+                        return self._parse(resp.json())
+                except httpx.HTTPStatusError as exc:
+                    status = exc.response.status_code if exc.response is not None else 0
+                    last_exc = LLMError(f"LLM HTTP {status}")
+                    if status == 401:
+                        raise last_exc from exc  # bad key — no point trying other models
+                    if status in (429, 500, 502, 503, 504) and attempt < 2:
+                        await asyncio.sleep(1.5 * (attempt + 1))
+                        continue
+                    break  # 404/other -> move on to the next candidate model
+                except (httpx.HTTPError, ValueError) as exc:
+                    last_exc = LLMError(f"LLM request failed: {exc}")
+                    if attempt < 2:
+                        await asyncio.sleep(1.0 * (attempt + 1))
+                        continue
+                    break
         raise last_exc or LLMError("LLM request failed")
 
     @staticmethod

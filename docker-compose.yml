@@ -28,7 +28,8 @@ services:
       OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
       OPENROUTER_BASE_URL: "${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}"
       AGENT_PROVIDER: "${AGENT_PROVIDER:-openrouter}"
-      AGENT_MODEL: "${AGENT_MODEL:-meta-llama/llama-3.3-70b-instruct:free}"
+      AGENT_MODEL: "${AGENT_MODEL:-openai/gpt-oss-20b:free}"
+      AGENT_FALLBACK_MODELS: "${AGENT_FALLBACK_MODELS:-openai/gpt-oss-20b:free,qwen/qwen3-coder:free,meta-llama/llama-3.3-70b-instruct:free}"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

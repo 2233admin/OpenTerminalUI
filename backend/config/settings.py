@@ -41,7 +41,16 @@ class AppSettings(BaseModel):
     # Agent framework (multi-provider LLM)
     agent_provider: str = "openrouter"  # openrouter | openai | lmstudio
     # Default to a free OpenRouter model. Override via AGENT_MODEL / config.
-    agent_model: str = "meta-llama/llama-3.3-70b-instruct:free"
+    agent_model: str = "openai/gpt-oss-20b:free"
+    # Free-only fallback chain tried in order when the primary model is
+    # rate-limited (429) or unavailable (404). All entries must be ":free".
+    agent_fallback_models: list[str] = Field(
+        default_factory=lambda: [
+            "openai/gpt-oss-20b:free",
+            "qwen/qwen3-coder:free",
+            "meta-llama/llama-3.3-70b-instruct:free",
+        ]
+    )
     agent_max_steps: int = 12
     agent_timeout_seconds: float = 120.0
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
@@ -237,7 +246,16 @@ def get_settings() -> AppSettings:
         agent_model=(
             _env("OPENTERMINALUI_AGENT_MODEL")
             or _env("AGENT_MODEL")
-            or app_cfg.get("agent_model", "meta-llama/llama-3.3-70b-instruct:free")
+            or app_cfg.get("agent_model", "openai/gpt-oss-20b:free")
+        ),
+        agent_fallback_models=(
+            _parse_cors_env(_env("AGENT_FALLBACK_MODELS"))
+            or app_cfg.get("agent_fallback_models")
+            or [
+                "openai/gpt-oss-20b:free",
+                "qwen/qwen3-coder:free",
+                "meta-llama/llama-3.3-70b-instruct:free",
+            ]
         ),
         agent_max_steps=int(
             _env("OPENTERMINALUI_AGENT_MAX_STEPS")
