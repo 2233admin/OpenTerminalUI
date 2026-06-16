@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
+from backend.api.routes.agent import router as agent_router
 from backend.api.routes.ai import router as ai_router
 from backend.api.routes.analytics import router as analytics_router
 from backend.api.routes.bonds import router as bonds_router
@@ -52,6 +53,7 @@ api_router.include_router(commodities_router, prefix="/api")
 api_router.include_router(forex_router, prefix="/api")
 api_router.include_router(factor_analysis_router, prefix="/api")
 api_router.include_router(ai_router, prefix="/api")
+api_router.include_router(agent_router, prefix="/api")
 # These routers already carry their full "/api/..." prefix internally,
 # so they must be included WITHOUT an extra prefix (avoids "/api/api/...").
 api_router.include_router(analytics_router)
