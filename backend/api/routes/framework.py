@@ -24,6 +24,7 @@ class FrameworkBacktestRequest(BaseModel):
     rebalance_freq: str = "ME"
     initial_cash: float = Field(100000.0, gt=0)
     transaction_cost_bps: float = Field(10.0, ge=0)
+    transaction_cost_overrides: dict[str, float] = Field(default_factory=dict)
     top_n: int = Field(10, ge=1)
     long_only: bool = True
     alpha: ModelSpec
@@ -53,7 +54,9 @@ async def run_backtest(req: FrameworkBacktestRequest) -> dict:
             portfolio_construction=req.portfolio_construction.model_dump(),
             risk=[r.model_dump() for r in req.risk],
             rebalance_freq=req.rebalance_freq, initial_cash=req.initial_cash,
-            transaction_cost_bps=req.transaction_cost_bps, top_n=req.top_n, long_only=req.long_only,
+            transaction_cost_bps=req.transaction_cost_bps,
+            transaction_cost_overrides=req.transaction_cost_overrides,
+            top_n=req.top_n, long_only=req.long_only,
         )
         return run_framework_backtest(prices, cfg, benchmark=bench)
     try:

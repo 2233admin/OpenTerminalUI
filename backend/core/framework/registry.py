@@ -1,6 +1,9 @@
 from backend.core.framework.alpha_models import MomentumAlpha, MeanReversionAlpha, RsiAlpha
 from backend.core.framework.portfolio_construction import EqualWeighting, InsightWeighting, MeanVarianceOptimization
-from backend.core.framework.risk_management import MaximumDrawdownRisk, MaxPositionSizeRisk, TrailingStopRisk
+from backend.core.framework.risk_management import (
+    MaximumDrawdownRisk, MaxPositionSizeRisk, TrailingStopRisk,
+    TakeProfitRisk, CooldownRisk, ScalingRisk
+)
 
 def list_models() -> dict:
     return {
@@ -52,6 +55,29 @@ def list_models() -> dict:
                 'id': 'trailing_stop',
                 'label': 'Trailing Stop Risk',
                 'params': [{'key': 'stop_pct', 'label': 'Stop %', 'type': 'float', 'default': 0.15}]
+            },
+            {
+                'id': 'take_profit',
+                'label': 'Take Profit',
+                'params': [
+                    {'key': 'take_profit_pct', 'label': 'Take Profit %', 'type': 'float', 'default': 0.25},
+                    {'key': 'exit_fraction', 'label': 'Exit Fraction', 'type': 'float', 'default': 1.0}
+                ]
+            },
+            {
+                'id': 'cooldown',
+                'label': 'Cooldown Throttle',
+                'params': [{'key': 'cooldown_bars', 'label': 'Cooldown Bars', 'type': 'int', 'default': 3}]
+            },
+            {
+                'id': 'scaling',
+                'label': 'Scaling (Pyramiding)',
+                'params': [
+                    {'key': 'step_pct', 'label': 'Step %', 'type': 'float', 'default': 0.05},
+                    {'key': 'max_entries', 'label': 'Max Entries', 'type': 'int', 'default': 3},
+                    {'key': 'scale_increment', 'label': 'Scale Increment', 'type': 'float', 'default': 0.25},
+                    {'key': 'cooldown_bars', 'label': 'Cooldown Bars', 'type': 'int', 'default': 1}
+                ]
             }
         ]
     }
@@ -89,6 +115,12 @@ def build_risk(specs: list[dict]):
             models.append(MaxPositionSizeRisk(**params))
         elif model_id == 'trailing_stop':
             models.append(TrailingStopRisk(**params))
+        elif model_id == 'take_profit':
+            models.append(TakeProfitRisk(**params))
+        elif model_id == 'cooldown':
+            models.append(CooldownRisk(**params))
+        elif model_id == 'scaling':
+            models.append(ScalingRisk(**params))
         else:
             raise ValueError(f"Unknown risk model id: {model_id}")
     return models

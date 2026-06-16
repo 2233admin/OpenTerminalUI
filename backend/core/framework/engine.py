@@ -12,6 +12,7 @@ class FrameworkConfig:
     rebalance_freq: str = "ME"          # pandas offset alias (ME/QE/W etc.)
     initial_cash: float = 100000.0
     transaction_cost_bps: float = 10.0
+    transaction_cost_overrides: dict = field(default_factory=dict) # per-symbol bps
     top_n: int = 10
     long_only: bool = True
 
@@ -98,8 +99,13 @@ def run_framework_backtest(prices: pd.DataFrame, config: FrameworkConfig,
                 new_weights[sym] = w
                 
         # Compute Turnover and Transaction Costs
+        cost = 0.0
+        for sym in prices.columns:
+            bps = config.transaction_cost_overrides.get(sym, config.transaction_cost_bps)
+            diff = abs(new_weights[sym] - current_weights[sym])
+            cost += (bps / 10000.0) * diff * equity
+            
         turnover = sum(abs(new_weights[sym] - current_weights[sym]) for sym in prices.columns)
-        cost = (config.transaction_cost_bps / 10000.0) * turnover * equity
         equity -= cost
         
         # Update entry prices for new positions
