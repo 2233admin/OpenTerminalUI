@@ -46,6 +46,8 @@ import { useStockStore } from "../store/stockStore";
 import { terminalColors } from "../theme/terminal";
 import { consumePendingSavedView } from "../workspace/savedViewRestore";
 
+import { RobustnessPanel, type RobustnessData } from "../components/backtesting/panels/RobustnessPanel";
+
 type JobState = "idle" | "queued" | "running" | "done" | "failed";
 type BacktestTimeframe = "1D" | "1W" | "1M";
 type BacktestMarket = "NSE" | "BSE" | "NYSE" | "NASDAQ" | "AMEX";
@@ -59,7 +61,8 @@ type VizTab =
   | "metrics"
   | "trades"
   | "compare"
-  | "surface3d";
+  | "surface3d"
+  | "robustness";
 
 type StrategyDef = {
   key: string;
@@ -159,6 +162,7 @@ const VIZ_TABS: { key: VizTab; label: string; icon: string }[] = [
   { key: "trades", label: "Trade Analysis", icon: "" },
   { key: "compare", label: "Compare", icon: "CMP" },
   { key: "surface3d", label: "3D Surface", icon: "3D" },
+  { key: "robustness", label: "Robustness", icon: "" },
 ];
 
 const CUSTOM_STRATEGY_VALUE = "custom";
@@ -403,6 +407,8 @@ export function BacktestingPage() {
   const [result, setResult] = useState<BacktestJobResult | null>(null);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [robustness, setRobustness] = useState<RobustnessData | null>(null);
+  const [robustnessLoading, setRobustnessLoading] = useState(false);
   const [chartType, setChartType] = useState<ChartKind>("candle");
   const [dataTimeframe, setDataTimeframe] = useState<"1m" | "5m" | "15m" | "1h" | "1d">("1d");
   const [timeframe, setTimeframe] = useState<BacktestTimeframe>("1D");
@@ -423,7 +429,7 @@ export function BacktestingPage() {
     if (typeof filters.start === "string") setStart(filters.start);
     if (typeof filters.end === "string") setEnd(filters.end);
     if (typeof filters.strategyMode === "string") setStrategyMode(filters.strategyMode);
-    if (tabs.activeTab === "chart" || tabs.activeTab === "equity" || tabs.activeTab === "drawdown" || tabs.activeTab === "monthly" || tabs.activeTab === "rolling" || tabs.activeTab === "metrics" || tabs.activeTab === "trades" || tabs.activeTab === "compare" || tabs.activeTab === "surface3d") setActiveTab(tabs.activeTab);
+    if (tabs.activeTab === "chart" || tabs.activeTab === "equity" || tabs.activeTab === "drawdown" || tabs.activeTab === "monthly" || tabs.activeTab === "rolling" || tabs.activeTab === "metrics" || tabs.activeTab === "trades" || tabs.activeTab === "compare" || tabs.activeTab === "surface3d" || tabs.activeTab === "robustness") setActiveTab(tabs.activeTab);
   }, []);
   const [compareStrategies, setCompareStrategies] = useState<string[]>([]);
   const [compareResults, setCompareResults] = useState<Map<string, CompareState>>(new Map());
@@ -528,6 +534,7 @@ export function BacktestingPage() {
     setError(null);
     setResult(null);
     setAnalytics(null);
+    setRobustness(null);
     const strategy = strategyMode === CUSTOM_STRATEGY_VALUE ? script : `example:${strategyMode}`;
     const context = strategyMode === CUSTOM_STRATEGY_VALUE ? {} : (activePreset?.default_context ?? {});
     const sanitize = (value: unknown, fallback = 0): number => {
@@ -614,6 +621,28 @@ export function BacktestingPage() {
       setAnalyticsLoading(false);
     }
   }, [runId, jobState]);
+
+  const fetchRobustness = useCallback(async () => {
+    if (!runId || jobState !== "done") return;
+    setRobustnessLoading(true);
+    try {
+      const resp = await fetch(`/api/backtests/${runId}/robustness`);
+      if (resp.ok) {
+        const data = await resp.json();
+        setRobustness(data.robustness);
+      }
+    } catch {
+      // no-op
+    } finally {
+      setRobustnessLoading(false);
+    }
+  }, [runId, jobState]);
+
+  useEffect(() => {
+    if (activeTab === "robustness" && !robustness && !robustnessLoading && runId && jobState === "done") {
+      void fetchRobustness();
+    }
+  }, [activeTab, robustness, robustnessLoading, runId, jobState, fetchRobustness]);
 
   useEffect(() => {
     if (jobState === "done") void fetchAnalytics();
@@ -1468,6 +1497,10 @@ export function BacktestingPage() {
     />
   );
 
+  const renderRobustnessTab = () => (
+    <RobustnessPanel data={robustness} loading={robustnessLoading} />
+  );
+
   const renderActiveTab = () => {
     if (analyticsLoading && activeTab !== "chart" && activeTab !== "compare" && !resolvedAnalytics.monthly_returns.length) return emptyState("*", "Loading analytics...");
     if (activeTab === "chart") return renderChartTab();
@@ -1478,6 +1511,7 @@ export function BacktestingPage() {
     if (activeTab === "metrics") return renderMetricsTab();
     if (activeTab === "trades") return renderTradesTab();
     if (activeTab === "compare") return renderCompareTab();
+    if (activeTab === "robustness") return renderRobustnessTab();
     return renderSurface3DTab();
   };
 
@@ -1493,6 +1527,7 @@ export function BacktestingPage() {
     surface3d: renderSurface3DTab,
     terrain3d: renderTerrain3DTab,
     regime3d: renderRegime3DTab,
+    robustness: renderRobustnessTab,
   };
 
   const handleWorkspaceCommand = (command: string) => {

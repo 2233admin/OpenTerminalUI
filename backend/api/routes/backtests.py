@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from backend.core.backtest_analytics import compute_full_analytics
+from backend.core.backtest_robustness import permutation_test, multi_window_robustness
 from backend.core.data_store import list_store_items, write_equity_curve
 from backend.core.factor_analysis import run_factor_decomposition
 from backend.core.monte_carlo import run_monte_carlo_simulation
@@ -199,6 +200,31 @@ async def backtest_analytics(
         histogram_bins=histogram_bins,
     )
     return {"run_id": run_id, "analytics": analytics}
+
+
+@router.get("/backtests/{run_id}/robustness")
+async def backtest_robustness(
+    run_id: str,
+    n_permutations: int = 500,
+    n_windows: int = 5,
+    metric: str = "sharpe",
+) -> dict[str, Any]:
+    if n_permutations < 50 or n_permutations > 2000:
+        raise HTTPException(status_code=400, detail="n_permutations must be between 50 and 2000")
+    if n_windows < 2 or n_windows > 20:
+        raise HTTPException(status_code=400, detail="n_windows must be between 2 and 20")
+    if metric not in ("sharpe", "total_return"):
+        raise HTTPException(status_code=400, detail="metric must be 'sharpe' or 'total_return'")
+
+    payload = await _resolve_finished_result(run_id)
+    equity_curve = payload.get("equity_curve", [])
+    return {
+        "run_id": run_id,
+        "robustness": {
+            "permutation_test": permutation_test(equity_curve, n_permutations=n_permutations, metric=metric),
+            "multi_window": multi_window_robustness(equity_curve, n_windows=n_windows),
+        },
+    }
 
 
 # Pro v1 compatibility endpoints (blueprint adapter layer)
