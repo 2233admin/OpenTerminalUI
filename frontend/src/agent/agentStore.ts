@@ -1,0 +1,97 @@
+import { create } from "zustand";
+
+import { createRun, streamRun } from "./agentApi";
+import { buildScreenContext } from "./screenContext";
+import type { AgentArtifact, AgentEvent, AgentMessage } from "./types";
+
+let seq = 0;
+const nextId = () => `m${Date.now()}_${seq++}`;
+
+interface AgentState {
+  open: boolean;
+  running: boolean;
+  messages: AgentMessage[];
+  artifacts: AgentArtifact[];
+  toggleOpen: () => void;
+  setOpen: (open: boolean) => void;
+  appendUserAndPending: (prompt: string) => void;
+  applyEvent: (event: AgentEvent) => void;
+  startRun: (prompt: string) => Promise<void>;
+}
+
+export const useAgentStore = create<AgentState>((set, get) => ({
+  open: false,
+  running: false,
+  messages: [],
+  artifacts: [],
+
+  toggleOpen: () => set((s) => ({ open: !s.open })),
+  setOpen: (open) => set({ open }),
+
+  appendUserAndPending: (prompt) =>
+    set((s) => ({
+      messages: [
+        ...s.messages,
+        { id: nextId(), role: "user", content: prompt, steps: [], pending: false },
+        { id: nextId(), role: "assistant", content: "", steps: [], pending: true },
+      ],
+    })),
+
+  applyEvent: (event) => {
+    if (event.type === "artifact") {
+      set((s) => ({
+        artifacts: [
+          ...s.artifacts,
+          { id: nextId(), kind: event.kind, name: event.name, data: event.data },
+        ],
+      }));
+      return;
+    }
+    set((s) => {
+      const messages = s.messages.slice();
+      const idx = messages.length - 1;
+      if (idx < 0 || messages[idx].role !== "assistant") return s;
+      const msg = { ...messages[idx], steps: messages[idx].steps.slice() };
+
+      switch (event.type) {
+        case "tool_call":
+          msg.steps.push({ id: event.id, name: event.name, isError: false });
+          break;
+        case "tool_result": {
+          const step = msg.steps.find((st) => st.id === event.id);
+          if (step) step.isError = event.is_error;
+          break;
+        }
+        case "token":
+          msg.content += event.text;
+          break;
+        case "final":
+          msg.content = event.content;
+          msg.pending = false;
+          break;
+        case "error":
+          msg.content = msg.content || `The agent hit an error: ${event.message}`;
+          msg.pending = false;
+          break;
+      }
+      messages[idx] = msg;
+      const running = event.type === "final" || event.type === "error" ? false : s.running;
+      return { messages, running };
+    });
+  },
+
+  startRun: async (prompt) => {
+    const text = prompt.trim();
+    if (!text || get().running) return;
+    get().appendUserAndPending(text);
+    set({ running: true });
+    try {
+      const runId = await createRun({ prompt: text, context: buildScreenContext() });
+      await streamRun(runId, (event) => get().applyEvent(event));
+    } catch (err) {
+      get().applyEvent({ type: "error", message: (err as Error).message || "request failed" });
+    } finally {
+      if (get().running) set({ running: false });
+    }
+  },
+}));
