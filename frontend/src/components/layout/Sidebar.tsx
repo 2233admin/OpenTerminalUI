@@ -27,6 +27,7 @@ export function Sidebar() {
     { label: "RS Analysis", path: "/equity/rs", key: "RS", hint: "Relative" },
     { label: "Launchpad", path: "/equity/launchpad", key: "LP", hint: "Workspace" },
     { label: "Workstation", path: "/equity/chart-workstation", key: "6", hint: "6 Charts" },
+    { label: "Research", path: "/equity/research", key: "RES", hint: "Papers" },
     { label: "MTA", path: "/equity/mta", key: "MT", hint: "Multi-TF" },
     { label: "DOM", path: "/equity/dom", key: "D", hint: "Depth" },
     { label: "Tape", path: "/equity/tape", key: "T", hint: "Time & Sales" },

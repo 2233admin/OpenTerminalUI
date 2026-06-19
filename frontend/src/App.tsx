@@ -42,6 +42,7 @@ const OpsDashboardPage = lazyWithRetry(() => import("./pages/OpsDashboard").then
 const SettingsPage = lazyWithRetry(() => import("./pages/Settings").then((m) => ({ default: m.SettingsPage })));
 const PluginsPage = lazyWithRetry(() => import("./pages/Plugins/Plugins").then((m) => ({ default: m.PluginsPage })));
 const ChartWorkstationPage = lazyWithRetry(() => import("./pages/ChartWorkstationPage").then((m) => ({ default: m.ChartWorkstationPage })));
+const ResearchPage = lazyWithRetry(() => import("./pages/ResearchPage").then((m) => ({ default: m.ResearchPage })));
 const MultiTimeframePage = lazyWithRetry(() => import("./pages/MultiTimeframePage").then((m) => ({ default: m.MultiTimeframePage })));
 const LaunchpadPage = lazyWithRetry(() => import("./pages/Launchpad").then((m) => ({ default: m.LaunchpadPage })));
 const LaunchpadPopoutPage = lazyWithRetry(() => import("./pages/LaunchpadPopout").then((m) => ({ default: m.LaunchpadPopoutPage })));
@@ -162,6 +163,7 @@ function App() {
             <Route path="plugins" element={<PluginsPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="chart-workstation" element={<ChartWorkstationPage />} />
+            <Route path="research" element={<ResearchPage />} />
             <Route path="mta" element={<MultiTimeframePage />} />
             <Route path="dom" element={<DOMPage />} />
             <Route path="tape" element={<TimeAndSalesPage />} />
