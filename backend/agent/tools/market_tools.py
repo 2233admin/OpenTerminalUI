@@ -96,6 +96,33 @@ async def compare_stocks(args: dict[str, Any]) -> dict[str, Any]:
     return {"rows": rows}
 
 
+async def search_research(args: dict[str, Any]) -> dict[str, Any]:
+    """RAG over the local quant-research knowledge base (arXiv etc.)."""
+    from backend.core.research import service as research_service
+
+    query = str(args.get("query", "")).strip()
+    if not query:
+        return {"query": query, "count": 0, "results": [], "note": "query is required"}
+    try:
+        k = max(1, min(20, int(args.get("k", 6))))
+    except (TypeError, ValueError):
+        k = 6
+    rows = research_service.search(query, k=k)
+    trimmed = [
+        {
+            "title": r.get("title"),
+            "authors": r.get("authors"),
+            "url": r.get("url"),
+            "published_at": r.get("published_at"),
+            "score": r.get("score"),
+            "abstract": (str(r.get("abstract") or "")[:600]),
+        }
+        for r in rows
+    ]
+    note = None if trimmed else "No indexed research yet — ingest via POST /api/research/ingest first."
+    return {"query": query, "count": len(trimmed), "results": trimmed, **({"note": note} if note else {})}
+
+
 def build_default_registry() -> ToolRegistry:
     reg = ToolRegistry()
     reg.register(ToolSpec(
@@ -137,5 +164,19 @@ def build_default_registry() -> ToolRegistry:
             "required": ["tickers"],
         },
         handler=compare_stocks, read_only=True,
+    ))
+    reg.register(ToolSpec(
+        name="search_research",
+        description="Search the local quant-research knowledge base (arXiv papers etc.) for relevant findings. "
+                    "Returns titles, authors, abstract snippets and links.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Topic / question to search for."},
+                "k": {"type": "integer", "minimum": 1, "maximum": 20},
+            },
+            "required": ["query"],
+        },
+        handler=search_research, read_only=True,
     ))
     return reg

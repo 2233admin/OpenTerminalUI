@@ -20,6 +20,7 @@ from backend.api.routes.insider import router as insider_router
 from backend.api.routes.journal import router as journal_router
 from backend.api.routes.notifications import router as notifications_router
 from backend.api.routes.portfolio_optimizer import router as portfolio_optimizer_router
+from backend.api.routes.research import router as research_router
 from backend.api.routes.statlab import router as statlab_router
 from backend.api.routes.stress_test import router as stress_test_router
 from backend.api.routes.tape import router as tape_router
@@ -63,6 +64,7 @@ api_router.include_router(analytics_router)
 api_router.include_router(correlation_router)
 # pair trading router carries its own "/api/pairs" prefix.
 api_router.include_router(pair_trading_router)
+api_router.include_router(research_router)
 api_router.include_router(fno_flow_router)
 api_router.include_router(heatmap_router, prefix="/api/heatmap")
 api_router.include_router(journal_router)
