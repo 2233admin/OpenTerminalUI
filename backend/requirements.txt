@@ -42,3 +42,4 @@ scikit-learn
 pypdf
 beautifulsoup4
 lxml
+mcp
