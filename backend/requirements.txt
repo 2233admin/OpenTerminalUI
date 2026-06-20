@@ -39,3 +39,6 @@ websockets>=12.0
 python-multipart
 scipy
 scikit-learn
+pypdf
+beautifulsoup4
+lxml

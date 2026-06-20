@@ -2,7 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { extractApiErrorMessage } from "../api/base";
-import { ingestResearch, listResearch, searchResearch, type ResearchItem } from "../api/research";
+import {
+  ingestResearch,
+  ingestUrlResearch,
+  listResearch,
+  searchResearch,
+  type ResearchItem,
+} from "../api/research";
 import { TerminalButton } from "../components/terminal/TerminalButton";
 import { TerminalInput } from "../components/terminal/TerminalInput";
 
@@ -11,6 +17,11 @@ function formatDate(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "2-digit" });
+}
+
+function formatChars(value: number): string {
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}k chars`;
+  return `${value} chars`;
 }
 
 // Card styling mirrors the home screen (rounded border-terminal-border
@@ -36,6 +47,16 @@ function ResearchCard({ item }: { item: ResearchItem }) {
           {typeof item.score === "number" ? (
             <span className="rounded border border-terminal-accent/50 bg-terminal-accent/10 px-2 py-0.5 text-terminal-accent">
               Score {item.score.toFixed(3)}
+            </span>
+          ) : null}
+          {item.source ? (
+            <span className="rounded border border-terminal-border px-2 py-0.5 text-terminal-muted">
+              {item.source}
+            </span>
+          ) : null}
+          {item.text_chars && item.text_chars > 0 ? (
+            <span className="rounded border border-terminal-pos/50 bg-terminal-pos/10 px-2 py-0.5 text-terminal-pos">
+              {formatChars(item.text_chars)}
             </span>
           ) : null}
           <span className="rounded border border-terminal-border px-2 py-0.5 text-terminal-muted">
@@ -65,6 +86,7 @@ export function ResearchPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [ingestQuery, setIngestQuery] = useState("cat:q-fin.*");
   const [maxResults, setMaxResults] = useState(25);
+  const [ingestUrl, setIngestUrl] = useState("");
   const [status, setStatus] = useState<string | null>(null);
 
   const recentQuery = useQuery({
@@ -85,6 +107,20 @@ export function ResearchPage() {
     },
   });
 
+  const ingestUrlMutation = useMutation({
+    mutationFn: () => ingestUrlResearch(ingestUrl.trim()),
+    onSuccess: async (result) => {
+      setStatus(
+        result.ingested
+          ? `Added "${result.title || result.url}" (${result.text_chars.toLocaleString()} chars)`
+          : "URL already indexed or returned no content",
+      );
+      setIngestUrl("");
+      searchMutation.reset();
+      await queryClient.invalidateQueries({ queryKey: ["research", "items"] });
+    },
+  });
+
   useEffect(() => {
     if (!status) return;
     const timeout = window.setTimeout(() => setStatus(null), 5000);
@@ -92,12 +128,17 @@ export function ResearchPage() {
   }, [status]);
 
   const error = useMemo(() => {
-    const candidate = recentQuery.error || searchMutation.error || ingestMutation.error;
+    const candidate =
+      recentQuery.error || searchMutation.error || ingestMutation.error || ingestUrlMutation.error;
     return candidate ? extractApiErrorMessage(candidate, "Research request failed.") : null;
-  }, [ingestMutation.error, recentQuery.error, searchMutation.error]);
+  }, [ingestMutation.error, ingestUrlMutation.error, recentQuery.error, searchMutation.error]);
 
   const items = searchMutation.data?.results ?? recentQuery.data?.items ?? [];
-  const isLoading = recentQuery.isLoading || searchMutation.isPending || ingestMutation.isPending;
+  const isLoading =
+    recentQuery.isLoading ||
+    searchMutation.isPending ||
+    ingestMutation.isPending ||
+    ingestUrlMutation.isPending;
   const showingSearch = Boolean(searchMutation.data);
 
   return (
@@ -152,6 +193,23 @@ export function ResearchPage() {
                 />
                 <TerminalButton type="submit" loading={ingestMutation.isPending}>
                   Ingest arXiv
+                </TerminalButton>
+              </form>
+
+              <form
+                className="grid gap-2 sm:grid-cols-[minmax(12rem,1fr)_auto] xl:col-span-2"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (ingestUrl.trim()) ingestUrlMutation.mutate();
+                }}
+              >
+                <TerminalInput
+                  value={ingestUrl}
+                  onChange={(event) => setIngestUrl(event.target.value)}
+                  placeholder="Add URL (article or PDF) to the knowledge base"
+                />
+                <TerminalButton type="submit" loading={ingestUrlMutation.isPending} disabled={!ingestUrl.trim()}>
+                  Add URL
                 </TerminalButton>
               </form>
             </div>

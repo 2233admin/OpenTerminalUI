@@ -14,7 +14,7 @@ def _fallback_substring(items: list[dict], query: str, k: int) -> list[dict]:
         return []
     matches: list[dict] = []
     for item in items:
-        haystack = f"{_text(item.get('title'))} {_text(item.get('abstract'))}".casefold()
+        haystack = f"{_text(item.get('title'))} {_text(item.get('abstract'))} {_text(item.get('full_text'))}".casefold()
         if needle in haystack:
             matched = dict(item)
             matched["score"] = 1.0
@@ -29,7 +29,10 @@ def search_items(items: list[dict], query: str, k: int = 10) -> list[dict]:
         return []
 
     try:
-        corpus = [f"{_text(item.get('title'))}. {_text(item.get('abstract'))}" for item in items]
+        corpus = [
+            f"{_text(item.get('title'))}. {_text(item.get('abstract'))}. {_text(item.get('full_text'))[:20_000]}"
+            for item in items
+        ]
         vectorizer = TfidfVectorizer(stop_words="english", max_features=20000)
         matrix = vectorizer.fit_transform(corpus)
         query_vector = vectorizer.transform([query])

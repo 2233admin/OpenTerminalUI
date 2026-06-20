@@ -22,6 +22,7 @@ class ResearchItem(Base):
     url: Mapped[str] = mapped_column(String(512), default="")
     categories: Mapped[str] = mapped_column(Text, default="")
     published_at: Mapped[str] = mapped_column(String(32), default="")
+    full_text: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
@@ -41,6 +42,7 @@ class ResearchItemOut(BaseModel):
     url: str
     categories: list[str]
     published_at: str
+    text_chars: int
     created_at: datetime
 
     @classmethod
@@ -55,5 +57,6 @@ class ResearchItemOut(BaseModel):
             url=item.url,
             categories=_split_csv(item.categories),
             published_at=item.published_at,
+            text_chars=len(item.full_text or ""),
             created_at=item.created_at,
         )

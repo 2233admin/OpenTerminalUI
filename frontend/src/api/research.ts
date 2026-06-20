@@ -10,6 +10,7 @@ export type ResearchItem = {
   url: string;
   categories: string[];
   published_at: string;
+  text_chars?: number;
   score?: number;
 };
 
@@ -21,6 +22,16 @@ export async function ingestResearch(
     query,
     max_results,
   });
+  return data;
+}
+
+export async function ingestUrlResearch(
+  url: string,
+): Promise<{ ingested: number; url: string; title: string; text_chars: number }> {
+  const { data } = await api.post<{ ingested: number; url: string; title: string; text_chars: number }>(
+    "/research/ingest_url",
+    { url },
+  );
   return data;
 }
 
