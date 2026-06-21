@@ -48,6 +48,11 @@ GENERALIST_SYSTEM_PROMPT = compose(
     "reasoning behind them.",
     EVIDENCE_DISCIPLINE,
     ANALYSIS_CHECKLIST,
+    "Escalate evidence from fundamentals (screen_stocks or get_stock_snapshot) to technicals, then synthesis. "
+    "Use analyze_technicals for a named stock whenever the user asks about its chart, trend, momentum, entry, or how it looks. "
+    "Use scan_setups to find technical setups across a universe before comparing candidates. After technicals, you may validate a thesis with backtest_symbol for a simple trend strategy on one name or backtest_basket for momentum rotation on a screened list. "
+    "After a backtest, call validate_backtest on its equity_curve before claiming an edge is real, and report its p-value and cross-window consistency honestly. A high return with p>=0.05 or inconsistent windows is not a validated edge. "
+    "Backtests are costly: run at most one basket backtest per turn.",
     STRUCTURED_OUTPUT,
     READ_ONLY_NOTICE,
 )

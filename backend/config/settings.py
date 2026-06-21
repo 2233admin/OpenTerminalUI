@@ -52,6 +52,7 @@ class AppSettings(BaseModel):
         ]
     )
     agent_max_steps: int = 12
+    agent_deep_max_steps: int = 24
     agent_debate_enabled: bool = False
     agent_debate_analyst_max_steps: int = 4
     agent_timeout_seconds: float = 120.0
@@ -262,6 +263,10 @@ def get_settings() -> AppSettings:
         agent_max_steps=int(
             _env("OPENTERMINALUI_AGENT_MAX_STEPS")
             or str(app_cfg.get("agent_max_steps", 12))
+        ),
+        agent_deep_max_steps=int(
+            _env("OPENTERMINALUI_AGENT_DEEP_MAX_STEPS")
+            or str(app_cfg.get("agent_deep_max_steps", 24))
         ),
         agent_debate_enabled=_as_bool(
             _env("OPENTERMINALUI_AGENT_DEBATE_ENABLED", "AGENT_DEBATE_ENABLED")

@@ -42,4 +42,9 @@ ARTIFACT_KINDS = {
     "compare_stocks": "compare_table",
     "get_stock_snapshot": "snapshot_card",
     "search_research": "research_list",
+    "analyze_technicals": "technicals_card",
+    "scan_setups": "setup_table",
+    "backtest_symbol": "backtest_report",
+    "backtest_basket": "equity_curve",
+    "validate_backtest": "robustness_card",
 }

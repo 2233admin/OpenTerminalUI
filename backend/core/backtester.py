@@ -50,16 +50,21 @@ def _perf_metrics(returns: pd.Series, equity_curve: pd.Series) -> dict[str, floa
     }
 
 
-def _download_close(tickers: list[str], start: str, end: str) -> pd.DataFrame:
+def _download_close(
+    tickers: list[str], start: str, end: str, default_suffix: str = ".NS"
+) -> pd.DataFrame:
+    # default_suffix is appended to bare tickers (no "." and not an index "^").
+    # It defaults to ".NS" so existing NSE callers are unchanged; pass "" for
+    # US/Yahoo-native symbols (e.g. AAPL) which take no exchange suffix.
     norm: list[str] = []
     for t in tickers:
         token = t.strip().upper()
         if not token:
             continue
-        if "." in token or token.startswith("^"):
+        if "." in token or token.startswith("^") or not default_suffix:
             norm.append(token)
         else:
-            norm.append(f"{token}.NS")
+            norm.append(f"{token}{default_suffix}")
     norm = list(dict.fromkeys(norm))
     if not norm:
         return pd.DataFrame()
@@ -95,7 +100,7 @@ def _download_close(tickers: list[str], start: str, end: str) -> pd.DataFrame:
     rename_map = {}
     for t in close.columns:
         t_str = str(t).upper()
-        rename_map[t] = t_str.replace(".NS", "")
+        rename_map[t] = t_str.replace(default_suffix, "") if default_suffix else t_str
     close = close.rename(columns=rename_map).sort_index()
     return close
 
@@ -105,8 +110,9 @@ def backtest_momentum_rotation(
     start: str,
     end: str,
     config: BacktestConfig,
+    default_suffix: str = ".NS",
 ) -> dict:
-    prices = _download_close(tickers, start, end)
+    prices = _download_close(tickers, start, end, default_suffix=default_suffix)
     if prices.empty or len(prices.columns) == 0:
         raise ValueError("No price data available for the selected universe/date range.")
     prices = prices.dropna(axis=1, how="all").ffill().dropna(how="all")
@@ -158,7 +164,7 @@ def backtest_momentum_rotation(
     strategy_equity = (1.0 + port_returns).cumprod()
     strategy_metrics = _perf_metrics(port_returns, strategy_equity)
 
-    bench_prices = _download_close([config.benchmark], start, end)
+    bench_prices = _download_close([config.benchmark], start, end, default_suffix=default_suffix)
     if bench_prices.empty:
         benchmark_equity = pd.Series(index=strategy_equity.index, data=1.0)
         benchmark_metrics = {"total_return": 0.0, "cagr": 0.0, "volatility": 0.0, "sharpe": 0.0, "max_drawdown": 0.0}

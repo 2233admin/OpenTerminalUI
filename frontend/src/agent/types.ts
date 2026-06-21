@@ -19,7 +19,7 @@ export interface RunRequest {
   context?: RunContext;
   provider?: string;
   model?: string;
-  mode?: "standard" | "debate";
+  mode?: "standard" | "deep" | "debate";
   ticker?: string;
 }
 

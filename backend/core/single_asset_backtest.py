@@ -198,7 +198,9 @@ class BacktestEngine:
         date_index = pd.to_datetime(frame["date"], errors="coerce")
         N = len(frame)
 
-        target_signals = signals.fillna(0).astype(int).values
+        # Pandas may expose an immutable NumPy view (notably with copy-on-write
+        # enabled); this array is normalized in place below for long-only runs.
+        target_signals = signals.fillna(0).astype(int).to_numpy(copy=True)
         if not self.config.allow_short:
             target_signals[target_signals < 0] = 0
 

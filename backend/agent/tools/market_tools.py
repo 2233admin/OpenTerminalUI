@@ -1,11 +1,25 @@
 from __future__ import annotations
 
+import asyncio
+import math
+from datetime import datetime, timedelta
 from typing import Any
+
+import pandas as pd
 
 from backend.agent.tools.registry import ToolRegistry, ToolSpec
 from backend.api.deps import get_unified_fetcher
+from backend.api.routes.chart import _parse_yahoo_chart
+from backend.scanner_engine.detectors import DETECTOR_MAP
+from backend.scanner_engine.indicators import compute_indicator_pack
+from backend.scanner_engine.runner import ScannerRunner
+from backend.scanner_engine.schemas import DetectorRule, LiquidityGate, ScanPresetBase
 from backend.screener.engine import RunConfig, ScreenerEngine
 from backend.screener.router import _hydrate_missing_universe_rows
+from backend.core.single_asset_backtest import BacktestEngine, generate_sma_crossover_signals
+from backend.core.backtesting_models import BacktestConfig
+from backend.core.backtester import BacktestConfig as RotationConfig, backtest_momentum_rotation
+from backend.core.backtest_robustness import multi_window_robustness, permutation_test
 
 # Compact set of columns returned to the agent (the full screener row carries viz
 # data, scores and sparklines that just bloat the LLM context).
@@ -13,6 +27,252 @@ _AGENT_SCREEN_FIELDS = (
     "ticker", "company", "sector", "industry", "price", "market_cap",
     "pe", "pb", "roe", "roce", "debt_equity", "revenue_growth", "dividend_yield",
 )
+
+_DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
+    "breakout_n_day_high": {"n": 20, "buffer_pct": 0.001, "rvol_threshold": 1.5, "near_trigger_pct": 0.02},
+    "bb_squeeze_breakout": {"width_pct_threshold": 20, "lookback": 120, "require_keltner": False},
+    "nr7_breakout": {},
+    "inside_bar_breakout": {},
+    "trend_retest": {"ema_tolerance_pct": 0.02, "rvol_threshold": 1.2},
+    "supertrend_flip_ema_stack": {},
+}
+
+
+def _safe_float(value: Any) -> float | None:
+    """Return a JSON-safe finite float, or None for missing indicator values."""
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return None
+    return result if math.isfinite(result) else None
+
+
+def _technical_empty(ticker: str, note: str) -> dict[str, Any]:
+    return {
+        "ticker": ticker, "as_of": None, "price": None,
+        "trend": {}, "momentum": {}, "volatility": {}, "volume": {},
+        "distance_from_20d_high_pct": None, "active_setups": [], "note": note,
+    }
+
+
+def _downsample_rows(rows: list[dict[str, Any]], limit: int = 120) -> list[dict[str, Any]]:
+    """Keep an evenly spaced, bounded series and always retain the final point."""
+    if len(rows) <= limit:
+        return rows
+    step = math.ceil((len(rows) - 1) / (limit - 1))
+    sampled = rows[::step]
+    if sampled[-1] is not rows[-1]:
+        sampled[-1] = rows[-1]
+    return sampled[:limit]
+
+
+def _backtest_symbol_empty(ticker: str, short_window: int, long_window: int, note: str) -> dict[str, Any]:
+    return {
+        "ticker": ticker, "strategy": "sma_crossover",
+        "params": {"short_window": short_window, "long_window": long_window},
+        "bars": 0, "metrics": {}, "equity_curve": [], "note": note,
+    }
+
+
+async def backtest_symbol(args: dict[str, Any]) -> dict[str, Any]:
+    """Run a compact SMA-crossover backtest for one symbol; never raises."""
+    ticker = str(args.get("ticker", "")).strip().upper()
+    strategy = str(args.get("strategy", "sma_crossover"))
+    range_str = str(args.get("range", "3y"))
+    try:
+        short_window = int(args.get("short_window", 20))
+        long_window = int(args.get("long_window", 50))
+    except (TypeError, ValueError):
+        return _backtest_symbol_empty(ticker, 20, 50, "short_window and long_window must be integers.")
+    if not ticker:
+        return _backtest_symbol_empty(ticker, short_window, long_window, "ticker is required.")
+    if strategy != "sma_crossover":
+        return _backtest_symbol_empty(ticker, short_window, long_window, "Only strategy='sma_crossover' is supported.")
+    if short_window <= 0 or long_window <= 0 or short_window >= long_window:
+        return _backtest_symbol_empty(ticker, short_window, long_window, "short_window must be positive and less than long_window.")
+
+    try:
+        fetcher = await get_unified_fetcher()
+        raw = await fetcher.fetch_history(ticker, range_str=range_str, interval="1d")
+        parsed = await asyncio.to_thread(_parse_yahoo_chart, raw)
+        if parsed is None or parsed.empty:
+            return _backtest_symbol_empty(ticker, short_window, long_window, "No price history is available for this ticker and timeframe.")
+
+        def run() -> Any:
+            frame = pd.DataFrame({
+                "date": parsed.index, "open": parsed["Open"].values, "high": parsed["High"].values,
+                "low": parsed["Low"].values, "close": parsed["Close"].values,
+            }).dropna().reset_index(drop=True)
+            if frame.empty:
+                raise ValueError("No usable OHLC rows after removing missing values.")
+            signals = generate_sma_crossover_signals(frame, short_window, long_window)
+            # BacktestEngine mutates the NumPy view of the signals when shorts
+            # are disabled; ensure pandas does not hand it a read-only view.
+            signals = pd.Series(signals.to_numpy(copy=True), index=signals.index)
+            return BacktestEngine(BacktestConfig(
+                initial_cash=100000, fee_bps=5, slippage_bps=5,
+                position_fraction=1.0, allow_short=False,
+            )).run(ticker, frame, signals)
+
+        result = await asyncio.wait_for(asyncio.to_thread(run), timeout=60)
+        curve = _downsample_rows([
+            {"date": str(point.date), "equity": _safe_float(point.equity)}
+            for point in result.equity_curve
+        ])
+        cagr_pct: float | None = None
+        if len(result.equity_curve) >= 2 and result.final_equity > 0:
+            first = pd.to_datetime(result.equity_curve[0].date)
+            last = pd.to_datetime(result.equity_curve[-1].date)
+            years = max((last - first).days / 365.25, 0)
+            if years > 0:
+                cagr_pct = ((result.final_equity / result.initial_cash) ** (1 / years) - 1) * 100
+        metrics: dict[str, Any] = {
+            "total_return_pct": _safe_float(result.total_return) * 100,
+            "sharpe": _safe_float(result.sharpe), "sortino": _safe_float(result.sortino),
+            "calmar": _safe_float(result.calmar), "max_drawdown_pct": _safe_float(result.max_drawdown) * 100,
+            "win_rate_pct": _safe_float(result.win_rate), "profit_factor": _safe_float(result.profit_factor),
+            "trades": len(result.trades),
+        }
+        if cagr_pct is not None and math.isfinite(cagr_pct):
+            metrics["cagr_pct"] = cagr_pct
+        return {
+            "ticker": ticker, "strategy": "sma_crossover",
+            "params": {"short_window": short_window, "long_window": long_window},
+            "bars": result.bars, "metrics": metrics, "equity_curve": curve,
+        }
+    except asyncio.TimeoutError:
+        return _backtest_symbol_empty(ticker, short_window, long_window, "Backtest timed out after 60 seconds.")
+    except Exception as exc:  # noqa: BLE001 - agent tools must never raise
+        return _backtest_symbol_empty(ticker, short_window, long_window, f"Backtest could not run: {exc}")
+
+
+async def backtest_basket(args: dict[str, Any]) -> dict[str, Any]:
+    """Run a compact momentum-rotation backtest for a basket; never raises."""
+    tickers = list(dict.fromkeys(str(t).strip().upper() for t in args.get("tickers", []) if str(t).strip()))
+    market = str(args.get("market", "")).upper()
+    try:
+        top_n = int(args.get("top_n", 5))
+        lookback_days = int(args.get("lookback_days", 63))
+        years = int(args.get("years", 3))
+    except (TypeError, ValueError):
+        return {"tickers": tickers, "equity_curve": [], "note": "top_n, lookback_days, and years must be integers."}
+    is_india = market == "IN" or (bool(tickers) and all(t.endswith(".NS") for t in tickers))
+    benchmark = str(args.get("benchmark") or ("^NSEI" if is_india else "^GSPC"))
+    base = {"tickers": tickers, "benchmark": benchmark, "top_n": min(max(top_n, 0), len(tickers)), "equity_curve": []}
+    if not 2 <= len(tickers) <= 30:
+        return {**base, "note": "tickers must contain between 2 and 30 symbols."}
+    if top_n <= 0 or lookback_days <= 0 or years <= 0:
+        return {**base, "note": "top_n, lookback_days, and years must be positive."}
+    rebalance_freq = str(args.get("rebalance_freq", "ME"))
+    end = datetime.now()
+    start = end - timedelta(days=365 * years)
+    try:
+        result = await asyncio.wait_for(asyncio.to_thread(
+            backtest_momentum_rotation, tickers, start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"),
+            RotationConfig(lookback_days=lookback_days, rebalance_freq=rebalance_freq,
+                           top_n=min(top_n, len(tickers)), transaction_cost_bps=10.0, benchmark=benchmark),
+            default_suffix=(".NS" if is_india else ""),
+        ), timeout=90)
+        curve = result.get("equity_curve")
+        if not isinstance(curve, pd.DataFrame) or curve.empty:
+            return {**base, "note": "Backtest returned no equity curve."}
+        rows = _downsample_rows([
+            {"date": index.date().isoformat() if hasattr(index, "date") else str(index),
+             "strategy": _safe_float(row.get("strategy")), "benchmark": _safe_float(row.get("benchmark"))}
+            for index, row in curve.iterrows()
+        ])
+        raw_summary = result.get("summary", {})
+        def metrics(key: str) -> dict[str, float | None]:
+            source = raw_summary.get(key, {}) if isinstance(raw_summary, dict) else {}
+            return {
+                "total_return_pct": _safe_float(source.get("total_return")) * 100,
+                "cagr_pct": _safe_float(source.get("cagr")) * 100,
+                "volatility_pct": _safe_float(source.get("volatility")) * 100,
+                "sharpe": _safe_float(source.get("sharpe")),
+                "max_drawdown_pct": _safe_float(source.get("max_drawdown")) * 100,
+            }
+        return {
+            **base, "top_n": min(top_n, len(tickers)),
+            "summary": {"strategy": metrics("strategy"), "benchmark": metrics("benchmark"),
+                        "alpha_total_return_pct": _safe_float(raw_summary.get("alpha_total_return")) * 100},
+            "equity_curve": rows,
+        }
+    except asyncio.TimeoutError:
+        return {**base, "note": "Basket backtest timed out after 90 seconds."}
+    except Exception as exc:  # noqa: BLE001 - includes no-price-data ValueError
+        return {**base, "note": f"Basket backtest could not run: {exc}"}
+
+
+def _validate_backtest_empty(metric: str, note: str) -> dict[str, Any]:
+    return {
+        "points": 0, "metric": metric, "permutation": {}, "robustness": {},
+        "verdict": "Unable to validate backtest", "note": note,
+    }
+
+
+async def validate_backtest(args: dict[str, Any]) -> dict[str, Any]:
+    """Run compact robustness checks on a backtest curve; never raises."""
+    metric = str(args.get("metric", "sharpe"))
+    if metric not in {"sharpe", "total_return"}:
+        return _validate_backtest_empty(metric, "metric must be 'sharpe' or 'total_return'.")
+    try:
+        n_permutations = min(2000, max(100, int(args.get("n_permutations", 500))))
+        n_windows = min(12, max(2, int(args.get("n_windows", 5))))
+        periods_per_year = int(args.get("periods_per_year", 252))
+    except (TypeError, ValueError):
+        return _validate_backtest_empty(metric, "n_permutations, n_windows, and periods_per_year must be integers.")
+
+    raw_curve = args.get("equity_curve")
+    if not isinstance(raw_curve, list):
+        return _validate_backtest_empty(metric, "equity_curve must be an array of rows.")
+    curve: list[dict[str, Any]] = []
+    for row in raw_curve:
+        if not isinstance(row, dict):
+            continue
+        date = row.get("date")
+        value = next((row[key] for key in ("equity", "strategy", "value", "nav") if key in row), None)
+        equity = _safe_float(value)
+        if date is not None and str(date).strip() and equity is not None:
+            curve.append({"date": date, "equity": equity})
+    if len(curve) < 3:
+        return _validate_backtest_empty(metric, "At least 3 usable date/equity points are required.")
+
+    try:
+        permutation, robustness = await asyncio.to_thread(
+            lambda: (
+                permutation_test(curve, n_permutations=n_permutations, metric=metric,
+                                 periods_per_year=periods_per_year),
+                multi_window_robustness(curve, n_windows=n_windows, periods_per_year=periods_per_year),
+            )
+        )
+        p_value = _safe_float(permutation.get("p_value"))
+        consistency = _safe_float(robustness.get("consistency_score"))
+        significant = bool(p_value is not None and p_value < 0.05)
+        consistent = bool(robustness.get("interpretation") == "Robust performance across windows")
+        if significant and consistent:
+            verdict = "Significant edge, consistent across windows"
+        elif significant:
+            verdict = "Significant edge, but inconsistent across windows"
+        else:
+            verdict = "Indistinguishable from random"
+        return {
+            "points": len(curve), "metric": metric,
+            "permutation": {
+                "observed": _safe_float(permutation.get("observed")), "p_value": p_value,
+                "percentile": _safe_float(permutation.get("percentile")),
+                "null_mean": _safe_float(permutation.get("null_mean")),
+                "null_std": _safe_float(permutation.get("null_std")),
+                "significant": significant, "interpretation": permutation.get("interpretation"),
+            },
+            "robustness": {
+                "n_windows": robustness.get("n_windows", 0),
+                "consistency_score": consistency, "coverage": robustness.get("coverage", {}),
+                "interpretation": robustness.get("interpretation"), "windows": robustness.get("windows", []),
+            },
+            "verdict": verdict,
+        }
+    except Exception as exc:  # noqa: BLE001 - agent tools must never raise
+        return _validate_backtest_empty(metric, f"Backtest validation could not run: {exc}")
 
 
 async def screen_stocks(args: dict[str, Any]) -> dict[str, Any]:
@@ -123,6 +383,121 @@ async def search_research(args: dict[str, Any]) -> dict[str, Any]:
     return {"query": query, "count": len(trimmed), "results": trimmed, **({"note": note} if note else {})}
 
 
+async def analyze_technicals(args: dict[str, Any]) -> dict[str, Any]:
+    """Return a compact technical snapshot and currently actionable setups."""
+    ticker = str(args.get("ticker", "")).strip().upper()
+    range_str = str(args.get("range", "1y"))
+    interval = str(args.get("interval", "1d"))
+    if not ticker:
+        return _technical_empty(ticker, "ticker is required")
+    try:
+        fetcher = await get_unified_fetcher()
+        raw = await asyncio.wait_for(
+            fetcher.fetch_history(ticker, range_str=range_str, interval=interval), timeout=20,
+        )
+        frame = await asyncio.to_thread(_parse_yahoo_chart, raw)
+        if frame is None or frame.empty:
+            return _technical_empty(ticker, "No price history is available for this ticker and timeframe.")
+        enriched = await asyncio.to_thread(compute_indicator_pack, frame.sort_index())
+        if enriched.empty:
+            return _technical_empty(ticker, "Price history could not be enriched with indicators.")
+    except asyncio.TimeoutError:
+        return _technical_empty(ticker, "Price-history request timed out.")
+    except Exception as exc:  # noqa: BLE001 - agent tools must never raise
+        return _technical_empty(ticker, f"Technical analysis could not run: {exc}")
+
+    try:
+        active_setups: list[dict[str, Any]] = []
+        for name, detector in DETECTOR_MAP.items():
+            try:
+                result = await asyncio.to_thread(detector, enriched, **_DETECTOR_DEFAULTS.get(name, {}))
+            except TypeError:
+                continue
+            except Exception:
+                continue
+            if not isinstance(result, dict) or (not result.get("passed") and str(result.get("event_type") or "none") == "none"):
+                continue
+            active_setups.append({
+                "setup_type": result.get("setup_type") or name,
+                "event_type": result.get("event_type", "none"),
+                "trend_state": result.get("trend_state"),
+                "distance_to_trigger": _safe_float(result.get("distance_to_trigger")),
+                "explain": result.get("explain_steps") or [],
+            })
+
+        def last(column: str) -> float | None:
+            return _safe_float(enriched[column].iloc[-1]) if column in enriched else None
+
+        price = last("Close")
+        ema_50, ema_200 = last("ema_50"), last("ema_200")
+        high_20 = _safe_float(enriched["High"].tail(20).max()) if "High" in enriched else None
+        distance_high = ((high_20 - price) / high_20 * 100) if high_20 and price is not None else None
+        supertrend = last("supertrend_dir")
+        return {
+            "ticker": ticker,
+            "as_of": enriched.index[-1].isoformat(),
+            "price": price,
+            "trend": {
+                "ema_9": last("ema_9"), "ema_21": last("ema_21"), "ema_50": ema_50, "ema_200": ema_200,
+                "above_50dma": bool(price is not None and ema_50 is not None and price >= ema_50),
+                "above_200dma": bool(price is not None and ema_200 is not None and price >= ema_200),
+                "supertrend_dir": int(supertrend) if supertrend is not None else None,
+            },
+            "momentum": {"rsi_14": last("rsi_14"), "roc_10": last("roc_10"), "roc_20": last("roc_20")},
+            "volatility": {"atr_pct": last("atr_pct"), "bb_width_pct_rank_120": last("bb_width_pct_rank_120")},
+            "volume": {"rvol_20": last("rvol_20")},
+            "distance_from_20d_high_pct": distance_high,
+            "active_setups": active_setups,
+        }
+    except Exception as exc:  # noqa: BLE001 - malformed provider data must not fail the agent
+        return _technical_empty(ticker, f"Technical analysis could not be summarized: {exc}")
+
+
+async def scan_setups(args: dict[str, Any]) -> dict[str, Any]:
+    """Scan a supported universe and return only ranked setup essentials."""
+    universe = str(args.get("universe", "NSE:NIFTY200"))
+    timeframe = str(args.get("timeframe", "1d"))
+    requested = args.get("setups")
+    setups = [str(s) for s in requested if str(s) in DETECTOR_MAP] if isinstance(requested, list) else list(DETECTOR_MAP)
+    if not setups:
+        return {"universe": universe, "timeframe": timeframe, "scanned": 0, "matches": 0, "results": [], "note": "No valid setup detectors were requested."}
+    try:
+        symbol_cap = max(1, min(150, int(args.get("symbol_cap", 60))))
+    except (TypeError, ValueError):
+        symbol_cap = 60
+    try:
+        limit = max(1, min(100, int(args.get("limit", 25))))
+    except (TypeError, ValueError):
+        limit = 25
+    try:
+        preset = ScanPresetBase(
+            name="agent_scan", universe=universe, timeframe=timeframe, liquidity_gate=LiquidityGate(),
+            rules=[DetectorRule(type=name, params=_DETECTOR_DEFAULTS[name]) for name in setups],
+        )
+        fetcher = await get_unified_fetcher()
+        bundle = await asyncio.wait_for(ScannerRunner(fetcher).run(preset, symbol_cap=symbol_cap, concurrency=8), timeout=45)
+        summary = bundle.summary if isinstance(bundle.summary, dict) else {}
+        rows = bundle.results if isinstance(bundle.results, list) else []
+    except asyncio.TimeoutError:
+        return {"universe": universe, "timeframe": timeframe, "scanned": 0, "matches": 0, "results": [], "note": "Setup scan timed out."}
+    except Exception as exc:  # noqa: BLE001 - agent tools must never raise
+        return {"universe": universe, "timeframe": timeframe, "scanned": 0, "matches": 0, "results": [], "note": f"Setup scan could not run: {exc}"}
+
+    try:
+        fields = ("symbol", "setup_type", "score", "event_type", "trend_state", "rvol", "atr_pct", "distance_to_trigger")
+        trimmed = [{key: row.get(key) for key in fields} for row in rows[:limit] if isinstance(row, dict)]
+        payload: dict[str, Any] = {
+            "universe": universe, "timeframe": timeframe,
+            "scanned": int(summary.get("symbols_scanned", 0) or 0),
+            "matches": int(summary.get("matches", len(rows)) or 0), "results": trimmed,
+        }
+        if not trimmed:
+            payload["note"] = "No matching setups were found, or price history was unavailable for this scan."
+        return payload
+    except Exception as exc:  # noqa: BLE001 - malformed runner data must not fail the agent
+        return {"universe": universe, "timeframe": timeframe, "scanned": 0, "matches": 0, "results": [], "note": f"Setup scan could not be summarized: {exc}"}
+
+
 def build_default_registry() -> ToolRegistry:
     reg = ToolRegistry()
     reg.register(ToolSpec(
@@ -178,5 +553,74 @@ def build_default_registry() -> ToolRegistry:
             "required": ["query"],
         },
         handler=search_research, read_only=True,
+    ))
+    reg.register(ToolSpec(
+        name="analyze_technicals",
+        description="Analyze one stock's trend, momentum, volatility, volume, and active technical setups.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "ticker": {"type": "string"}, "range": {"type": "string", "default": "1y"},
+                "interval": {"type": "string", "default": "1d"},
+            }, "required": ["ticker"],
+        }, handler=analyze_technicals, read_only=True, write_class="none",
+    ))
+    reg.register(ToolSpec(
+        name="scan_setups",
+        description="Scan a supported market universe for ranked technical setups.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "universe": {"type": "string", "default": "NSE:NIFTY200"},
+                "timeframe": {"type": "string", "default": "1d"},
+                "setups": {"type": "array", "items": {"type": "string", "enum": list(DETECTOR_MAP)}},
+                "symbol_cap": {"type": "integer", "minimum": 1, "maximum": 150, "default": 60},
+                "limit": {"type": "integer", "minimum": 1, "default": 25},
+            },
+        }, handler=scan_setups, read_only=True, write_class="none",
+    ))
+    reg.register(ToolSpec(
+        name="backtest_symbol",
+        description="Backtest a simple SMA crossover strategy for one ticker using daily price history.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "ticker": {"type": "string"},
+                "strategy": {"type": "string", "enum": ["sma_crossover"], "default": "sma_crossover"},
+                "short_window": {"type": "integer", "minimum": 1, "default": 20},
+                "long_window": {"type": "integer", "minimum": 2, "default": 50},
+                "range": {"type": "string", "default": "3y"},
+            }, "required": ["ticker"],
+        }, handler=backtest_symbol, read_only=True, write_class="none",
+    ))
+    reg.register(ToolSpec(
+        name="backtest_basket",
+        description="Backtest momentum rotation over a basket of 2 to 30 tickers.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "tickers": {"type": "array", "minItems": 2, "maxItems": 30, "items": {"type": "string"}},
+                "top_n": {"type": "integer", "minimum": 1, "default": 5},
+                "lookback_days": {"type": "integer", "minimum": 1, "default": 63},
+                "rebalance_freq": {"type": "string", "default": "ME"},
+                "benchmark": {"type": "string"},
+                "market": {"type": "string", "enum": ["IN", "US"]},
+                "years": {"type": "integer", "minimum": 1, "default": 3},
+            }, "required": ["tickers"],
+        }, handler=backtest_basket, read_only=True, write_class="none",
+    ))
+    reg.register(ToolSpec(
+        name="validate_backtest",
+        description="Run permutation and multi-window robustness checks on a backtest equity curve.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "equity_curve": {"type": "array", "items": {"type": "object"}},
+                "metric": {"type": "string", "enum": ["sharpe", "total_return"], "default": "sharpe"},
+                "n_permutations": {"type": "integer", "minimum": 100, "maximum": 2000, "default": 500},
+                "n_windows": {"type": "integer", "minimum": 2, "maximum": 12, "default": 5},
+                "periods_per_year": {"type": "integer", "default": 252},
+            }, "required": ["equity_curve"],
+        }, handler=validate_backtest, read_only=True, write_class="none",
     ))
     return reg

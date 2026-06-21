@@ -64,7 +64,8 @@ async def stream_run(run_id: str, user=Depends(get_current_user)) -> StreamingRe
         run_args = (subject,)
     else:
         orchestrator = Orchestrator(
-            provider=provider, registry=registry, max_steps=settings.agent_max_steps)
+            provider=provider, registry=registry,
+            max_steps=settings.agent_deep_max_steps if spec["mode"] == "deep" else settings.agent_max_steps)
         run_args = (spec["prompt"],)
 
     async def event_stream():

@@ -25,6 +25,7 @@ def test_agent_defaults(monkeypatch):
     assert s.openrouter_base_url == "https://openrouter.ai/api/v1"
     assert s.openrouter_api_key is None
     assert s.agent_max_steps == 12
+    assert s.agent_deep_max_steps == 24
     assert s.agent_timeout_seconds == 120.0
 
 
