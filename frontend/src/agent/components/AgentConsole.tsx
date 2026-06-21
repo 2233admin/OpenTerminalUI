@@ -21,6 +21,8 @@ export function AgentConsole() {
   useStockStore((s) => s.ticker);
   const contextSymbol = buildScreenContext().symbol;
   const [draft, setDraft] = useState("");
+  const activeModel = [...messages].reverse().find((message) => message.role === "assistant")?.model;
+  const modelLabel = activeModel?.replace(/^.*\//, "").replace(/:free$/, "");
 
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
@@ -79,6 +81,14 @@ export function AgentConsole() {
               className="rounded border border-terminal-accent/50 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-terminal-accent"
             >
               ▦ {contextSymbol}
+            </span>
+          ) : null}
+          {modelLabel ? (
+            <span
+              title="Model handling this request"
+              className="rounded border border-terminal-border px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-terminal-muted"
+            >
+              {modelLabel}
             </span>
           ) : null}
         </div>

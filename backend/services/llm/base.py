@@ -40,6 +40,7 @@ class LLMMessage:
 class AssistantMessage:
     content: str | None = None
     tool_calls: list[ToolCall] = field(default_factory=list)
+    model: str | None = None
 
     def to_wire(self) -> dict[str, Any]:
         wire: dict[str, Any] = {"role": "assistant", "content": self.content}
@@ -73,4 +74,5 @@ class LLMProvider(Protocol):
         *,
         temperature: float = 0.1,
         max_tokens: int = 1024,
+        models: list[str] | None = None,
     ) -> AssistantMessage: ...

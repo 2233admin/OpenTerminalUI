@@ -63,6 +63,7 @@ class OpenAICompatibleProvider:
         *,
         temperature: float = 0.1,
         max_tokens: int = 1024,
+        models: list[str] | None = None,
     ) -> AssistantMessage:
         payload: dict[str, Any] = {
             "messages": [m.to_wire() for m in messages],
@@ -78,7 +79,7 @@ class OpenAICompatibleProvider:
         # Try the primary model, then any fallbacks (free models are flaky:
         # 429 = rate-limited, 404 = unavailable). Each model gets a short
         # retry/backoff for transient 429/5xx before moving to the next.
-        candidates = [self.model] + [m for m in self.fallback_models if m != self.model]
+        candidates = models if models is not None else [self.model] + [m for m in self.fallback_models if m != self.model]
         last_exc: Exception | None = None
         for model in candidates:
             payload["model"] = model
@@ -89,7 +90,7 @@ class OpenAICompatibleProvider:
                     ) as client:
                         resp = await client.post(url, json=payload, headers=self._headers())
                         resp.raise_for_status()
-                        return self._parse(resp.json())
+                        return self._parse(resp.json(), model=model)
                 except httpx.HTTPStatusError as exc:
                     status = exc.response.status_code if exc.response is not None else 0
                     last_exc = LLMError(f"LLM HTTP {status}")
@@ -108,7 +109,7 @@ class OpenAICompatibleProvider:
         raise last_exc or LLMError("LLM request failed")
 
     @staticmethod
-    def _parse(data: dict[str, Any]) -> AssistantMessage:
+    def _parse(data: dict[str, Any], *, model: str | None = None) -> AssistantMessage:
         try:
             message = data["choices"][0]["message"]
         except (KeyError, IndexError, TypeError) as exc:
@@ -129,4 +130,4 @@ class OpenAICompatibleProvider:
         # Fall back to it so non-tool turns don't surface as empty responses.
         if not (content or "").strip() and not calls:
             content = message.get("reasoning") or content
-        return AssistantMessage(content=_clean_content(content), tool_calls=calls)
+        return AssistantMessage(content=_clean_content(content), tool_calls=calls, model=model)

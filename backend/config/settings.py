@@ -51,6 +51,27 @@ class AppSettings(BaseModel):
             "meta-llama/llama-3.3-70b-instruct:free",
         ]
     )
+    agent_models_tool_use: list[str] = Field(
+        default_factory=lambda: [
+            "meta-llama/llama-3.3-70b-instruct:free",
+            "qwen/qwen3-coder:free",
+            "openai/gpt-oss-20b:free",
+        ]
+    )
+    agent_models_reasoning: list[str] = Field(
+        default_factory=lambda: [
+            "deepseek/deepseek-r1:free",
+            "qwen/qwq-32b:free",
+            "openai/gpt-oss-120b:free",
+            "openai/gpt-oss-20b:free",
+        ]
+    )
+    agent_models_general: list[str] = Field(
+        default_factory=lambda: [
+            "openai/gpt-oss-20b:free",
+            "google/gemini-2.0-flash-exp:free",
+        ]
+    )
     agent_max_steps: int = 12
     agent_deep_max_steps: int = 24
     agent_debate_enabled: bool = False
@@ -259,6 +280,21 @@ def get_settings() -> AppSettings:
                 "qwen/qwen3-coder:free",
                 "meta-llama/llama-3.3-70b-instruct:free",
             ]
+        ),
+        agent_models_tool_use=(
+            _parse_cors_env(_env("OPENTERMINALUI_AGENT_MODELS_TOOL_USE") or _env("AGENT_MODELS_TOOL_USE"))
+            or app_cfg.get("agent_models_tool_use")
+            or ["meta-llama/llama-3.3-70b-instruct:free", "qwen/qwen3-coder:free", "openai/gpt-oss-20b:free"]
+        ),
+        agent_models_reasoning=(
+            _parse_cors_env(_env("OPENTERMINALUI_AGENT_MODELS_REASONING") or _env("AGENT_MODELS_REASONING"))
+            or app_cfg.get("agent_models_reasoning")
+            or ["deepseek/deepseek-r1:free", "qwen/qwq-32b:free", "openai/gpt-oss-120b:free", "openai/gpt-oss-20b:free"]
+        ),
+        agent_models_general=(
+            _parse_cors_env(_env("OPENTERMINALUI_AGENT_MODELS_GENERAL") or _env("AGENT_MODELS_GENERAL"))
+            or app_cfg.get("agent_models_general")
+            or ["openai/gpt-oss-20b:free", "google/gemini-2.0-flash-exp:free"]
         ),
         agent_max_steps=int(
             _env("OPENTERMINALUI_AGENT_MAX_STEPS")

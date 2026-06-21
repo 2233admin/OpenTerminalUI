@@ -37,7 +37,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       messages: [
         ...s.messages,
         { id: nextId(), role: "user", content: prompt, steps: [], phases: [], roles: [], pending: false },
-        { id: nextId(), role: "assistant", content: "", steps: [], phases: [], roles: [], pending: true },
+        { id: nextId(), role: "assistant", content: "", steps: [], phases: [], roles: [], pending: true, model: undefined },
       ],
     })),
 
@@ -63,6 +63,9 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       };
 
       switch (event.type) {
+        case "model":
+          msg.model = event.name;
+          break;
         case "tool_call":
           msg.steps.push({ id: event.id, name: event.name, isError: false });
           break;

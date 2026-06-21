@@ -6,7 +6,9 @@ from typing import Any, AsyncGenerator
 from backend.agent import events
 from backend.agent.debate import roles
 from backend.agent.orchestrator import Orchestrator
+from backend.config.settings import get_settings
 from backend.services.llm.base import LLMMessage
+from backend.services.llm.model_router import TaskProfile, select_chain
 
 
 class DebateOrchestrator:
@@ -55,12 +57,13 @@ class DebateOrchestrator:
             for role, _ in roles.ANALYSTS
         )
 
-    async def _complete(self, system: str, user: str) -> str:
+    async def _complete(self, system: str, user: str, role: str) -> tuple[str, str]:
         """One LLM turn that tolerates empty completions.
 
         Some models intermittently return empty content on long prompts; retry
         once with a shorter prompt before giving up. Returns '' if still empty.
         """
+        models = select_chain(TaskProfile(phase="synthesis", role=role), get_settings())
         for user_text in (user, user[:4000]):
             response = await self.provider.complete(
                 [LLMMessage(role="system", content=system), LLMMessage(role="user", content=user_text)],
@@ -68,11 +71,12 @@ class DebateOrchestrator:
                 # Headroom for reasoning models (e.g. gpt-oss): a tight token cap
                 # gets consumed by reasoning and yields empty content on long prompts.
                 max_tokens=1536,
+                models=models,
             )
             content = (response.content or "").strip()
             if content:
-                return content
-        return ""
+                return content, response.model or models[0]
+        return "", models[0]
 
     async def run(
         self, subject: str, *, screen_context: dict[str, Any] | None = None,
@@ -94,33 +98,44 @@ class DebateOrchestrator:
             yield events.phase("debate", "Bull vs Bear")
             analyst_context = self._analyst_context(notes)
             try:
-                bull = await self._complete(roles.BULL_RESEARCHER, analyst_context)
+                bull, bull_model = await self._complete(roles.BULL_RESEARCHER, analyst_context, "bull")
             except Exception as exc:
                 yield events.error(str(exc))
                 bull = ""
+                bull_model = ""
             bull = bull or "Bull case unavailable (model returned no content)."
+            if bull_model:
+                yield events.model(bull_model, "synthesis")
             yield events.role_message("bull", bull)
             try:
-                bear = await self._complete(roles.BEAR_RESEARCHER, analyst_context)
+                bear, bear_model = await self._complete(roles.BEAR_RESEARCHER, analyst_context, "bear")
             except Exception as exc:
                 yield events.error(str(exc))
                 bear = ""
+                bear_model = ""
             bear = bear or "Bear case unavailable (model returned no content)."
+            if bear_model:
+                yield events.model(bear_model, "synthesis")
             yield events.role_message("bear", bear)
 
             yield events.phase("decision", "Portfolio manager")
             decision_context = f"{analyst_context}\n\nBULL CASE:\n{bull}\n\nBEAR CASE:\n{bear}"
             try:
-                decision = await self._complete(roles.PORTFOLIO_MANAGER, decision_context)
+                decision, decision_model = await self._complete(
+                    roles.PORTFOLIO_MANAGER, decision_context, "portfolio_manager",
+                )
             except Exception as exc:
                 yield events.error(str(exc))
                 decision = ""
+                decision_model = ""
             # Guarantee the final always carries a usable DECISION line, even if
             # the model returned empty content or omitted the required format.
             if "DECISION:" not in decision:
                 decision = (
                     f"{decision}\n\n" if decision.strip() else ""
                 ) + "DECISION: HOLD | CONVICTION: 0 | Portfolio manager returned no decision; defaulting to HOLD."
+            if decision_model:
+                yield events.model(decision_model, "synthesis")
             yield events.final(decision)
         except Exception as exc:  # final defensive boundary for all coordinator failures
             yield events.error(str(exc))

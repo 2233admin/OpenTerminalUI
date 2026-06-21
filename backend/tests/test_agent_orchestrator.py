@@ -9,8 +9,10 @@ class ScriptedProvider:
     def __init__(self, scripted):
         self._scripted = list(scripted)
         self.calls = 0
+        self.model_chains = []
 
-    async def complete(self, messages, tools=None, *, temperature=0.1, max_tokens=1024):
+    async def complete(self, messages, tools=None, *, temperature=0.1, max_tokens=1024, models=None):
+        self.model_chains.append(models)
         msg = self._scripted[self.calls]
         self.calls += 1
         return msg
@@ -33,12 +35,16 @@ async def test_tool_call_then_final():
         AssistantMessage(content=None, tool_calls=[
             ToolCall(id="c1", name="screen_stocks", arguments={"query": "x"})]),
         AssistantMessage(content="Top idea: AAPL", tool_calls=[]),
+        AssistantMessage(content="Top idea: AAPL", tool_calls=[]),
     ])
     orch = Orchestrator(provider=provider, registry=_registry(), max_steps=5)
     events = [e async for e in orch.run("find cheap stocks")]
     kinds = [e["type"] for e in events]
     assert "tool_call" in kinds
     assert "tool_result" in kinds
+    assert "model" in kinds
+    assert provider.model_chains[0]
+    assert provider.model_chains[-1][0] == "deepseek/deepseek-r1:free"
     assert kinds[-1] == "final"
     assert events[-1]["content"] == "Top idea: AAPL"
 
@@ -55,6 +61,7 @@ async def test_tool_error_is_reported_not_raised():
     provider = ScriptedProvider([
         AssistantMessage(content=None, tool_calls=[
             ToolCall(id="c1", name="screen_stocks", arguments={})]),
+        AssistantMessage(content="Sorry, screener failed", tool_calls=[]),
         AssistantMessage(content="Sorry, screener failed", tool_calls=[]),
     ])
     orch = Orchestrator(provider=provider, registry=reg, max_steps=5)

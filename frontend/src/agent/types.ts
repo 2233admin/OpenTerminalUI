@@ -3,6 +3,7 @@ export type AgentEvent =
   | { type: "tool_call"; id: string; name: string; arguments: Record<string, unknown> }
   | { type: "tool_result"; id: string; name: string; result: unknown; is_error: boolean }
   | { type: "artifact"; kind: string; name: string; data: unknown }
+  | { type: "model"; name: string; phase: string }
   | { type: "phase"; key: string; label: string }
   | { type: "role_message"; role: string; content: string }
   | { type: "final"; content: string }
@@ -41,6 +42,7 @@ export interface AgentMessage {
   phases: AgentPhase[];
   roles: AgentRoleNote[];
   pending: boolean;
+  model?: string;
 }
 
 export interface AgentArtifact {

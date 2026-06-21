@@ -13,7 +13,7 @@ class RoleAwareProvider:
         self.calls_by_role = {}
         self.fail_pm = fail_pm
 
-    async def complete(self, messages, tools=None, *, temperature=0.1, max_tokens=1024):
+    async def complete(self, messages, tools=None, *, temperature=0.1, max_tokens=1024, models=None):
         system = messages[0].content
         count = self.calls_by_role.get(system, 0)
         self.calls_by_role[system] = count + 1
@@ -97,7 +97,7 @@ class EmptyContentProvider:
     completions on long prompts.
     """
 
-    async def complete(self, messages, tools=None, *, temperature=0.1, max_tokens=1024):
+    async def complete(self, messages, tools=None, *, temperature=0.1, max_tokens=1024, models=None):
         system = messages[0].content
         if system in (roles.FUNDAMENTAL_ANALYST, roles.SENTIMENT_ANALYST, roles.TECHNICAL_ANALYST):
             return AssistantMessage(content="Analyst verdict.")

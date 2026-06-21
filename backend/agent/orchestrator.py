@@ -7,6 +7,8 @@ from typing import Any, AsyncGenerator
 from backend.agent import events
 from backend.agent.playbook import GENERALIST_SYSTEM_PROMPT
 from backend.agent.tools.registry import ToolRegistry
+from backend.config.settings import get_settings
+from backend.services.llm.model_router import TaskProfile, classify_intent, select_chain
 from backend.services.llm.base import (
     AssistantMessage, LLMError, LLMMessage,
 )
@@ -58,6 +60,12 @@ class Orchestrator:
     async def run(
         self, user_prompt: str, *, screen_context: dict[str, Any] | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
+        settings = get_settings()
+        intent = classify_intent(user_prompt)
+        tool_models = select_chain(
+            TaskProfile(mode="deep" if self.max_steps > 12 else "standard", phase="tool_use", intent=intent),
+            settings,
+        )
         messages: list[LLMMessage | AssistantMessage] = [
             LLMMessage(role="system", content=self.system_prompt),
         ]
@@ -69,9 +77,11 @@ class Orchestrator:
         messages.append(LLMMessage(role="user", content=user_prompt))
 
         tool_defs = self.registry.tool_defs()
+        tools_used = False
+        yield events.model(tool_models[0], "tool_use")
         for _step in range(self.max_steps):
             try:
-                assistant = await self.provider.complete(messages, tools=tool_defs)
+                assistant = await self.provider.complete(messages, tools=tool_defs, models=tool_models)
             except LLMError as exc:
                 yield events.error(str(exc))
                 yield events.final("The model request failed; please try again.")
@@ -83,11 +93,28 @@ class Orchestrator:
                 return
 
             if not assistant.tool_calls:
-                yield events.final(assistant.content or "")
+                original_answer = assistant.content or ""
+                if not tools_used:
+                    yield events.final(original_answer)
+                    return
+                messages.append(assistant)
+                synthesis_models = select_chain(
+                    TaskProfile(phase="synthesis", intent=intent), settings,
+                )
+                yield events.model(synthesis_models[0], "synthesis")
+                try:
+                    synthesis = await self.provider.complete(messages, models=synthesis_models)
+                    if synthesis.model and synthesis.model != synthesis_models[0]:
+                        yield events.model(synthesis.model, "synthesis")
+                    yield events.final(synthesis.content or original_answer)
+                except Exception as exc:
+                    logger.warning("Synthesis model failed; using tool-loop answer: %s", exc)
+                    yield events.final(original_answer)
                 return
 
             messages.append(assistant)
             for call in assistant.tool_calls:
+                tools_used = True
                 yield events.tool_call(call.id, call.name, call.arguments)
                 try:
                     result = await self.registry.execute(call.name, call.arguments)

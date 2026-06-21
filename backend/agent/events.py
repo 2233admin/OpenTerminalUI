@@ -7,6 +7,10 @@ def token(text: str) -> dict[str, Any]:
     return {"type": "token", "text": text}
 
 
+def model(name: str, phase: str) -> dict[str, Any]:
+    return {"type": "model", "name": name, "phase": phase}
+
+
 def tool_call(call_id: str, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     return {"type": "tool_call", "id": call_id, "name": name, "arguments": arguments}
 

@@ -27,6 +27,9 @@ def test_agent_defaults(monkeypatch):
     assert s.agent_max_steps == 12
     assert s.agent_deep_max_steps == 24
     assert s.agent_timeout_seconds == 120.0
+    assert s.agent_models_tool_use[0] == "meta-llama/llama-3.3-70b-instruct:free"
+    assert s.agent_models_reasoning[0] == "deepseek/deepseek-r1:free"
+    assert s.agent_models_general[-1] == "google/gemini-2.0-flash-exp:free"
 
 
 def test_agent_env_override(monkeypatch):

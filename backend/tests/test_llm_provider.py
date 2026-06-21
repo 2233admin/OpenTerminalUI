@@ -72,6 +72,22 @@ async def test_complete_parses_plain_content():
     out = await provider.complete([LLMMessage(role="user", content="hi")])
     assert out.content == "AAPL looks fine"
     assert out.tool_calls == []
+    assert out.model == "m"
+
+
+@pytest.mark.asyncio
+async def test_complete_uses_supplied_model_chain_and_reports_winner():
+    captured: dict = {}
+    provider = OpenAICompatibleProvider(
+        base_url="https://x/api/v1", api_key=None, model="default",
+        transport=_mock_transport(captured, {"choices": [{"message": {"content": "done"}}]}),
+    )
+    out = await provider.complete(
+        [LLMMessage(role="user", content="hi")],
+        models=["first:free", "second:free"],
+    )
+    assert '"model":"first:free"' in captured["body"]
+    assert out.model == "first:free"
 
 
 @pytest.mark.asyncio
