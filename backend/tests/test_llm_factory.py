@@ -42,4 +42,4 @@ def test_unknown_provider_raises():
 
 
 def test_known_providers_listed():
-    assert set(AGENT_PROVIDERS) == {"openrouter", "openai", "lmstudio"}
+    assert set(AGENT_PROVIDERS) == {"openrouter", "openai", "lmstudio", "gemini"}

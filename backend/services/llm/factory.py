@@ -4,7 +4,7 @@ from backend.config.settings import get_settings
 from backend.services.llm.base import LLMError
 from backend.services.llm.openai_compatible import OpenAICompatibleProvider
 
-AGENT_PROVIDERS = ("openrouter", "openai", "lmstudio")
+AGENT_PROVIDERS = ("openrouter", "openai", "lmstudio", "gemini")
 
 
 def get_llm_provider(
@@ -43,6 +43,13 @@ def get_llm_provider(
             base_url=settings.lm_studio_base_url,
             api_key=None,
             model=model or settings.lm_studio_model,
+            timeout=timeout,
+        )
+    if provider == "gemini":
+        return OpenAICompatibleProvider(
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+            api_key=api_key or settings.gemini_api_key,
+            model=model or settings.agent_model,
             timeout=timeout,
         )
     raise LLMError(f"Unknown agent provider: {provider}")

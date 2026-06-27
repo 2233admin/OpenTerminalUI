@@ -39,7 +39,8 @@ class AppSettings(BaseModel):
     lm_studio_enabled: bool = True
     lm_studio_timeout_seconds: float = 240.0
     # Agent framework (multi-provider LLM)
-    agent_provider: str = "openrouter"  # openrouter | openai | lmstudio
+    agent_provider: str = "openrouter"  # openrouter | openai | lmstudio | gemini
+    gemini_api_key: str | None = None
     # Default to a free OpenRouter model. Override via AGENT_MODEL / config.
     agent_model: str = "openai/gpt-oss-20b:free"
     # Free-only fallback chain tried in order when the primary model is
@@ -249,6 +250,11 @@ def get_settings() -> AppSettings:
             _env("OPENTERMINALUI_LM_STUDIO_BASE_URL")
             or _env("LM_STUDIO_BASE_URL")
             or app_cfg.get("lm_studio_base_url", "http://localhost:1234/v1")
+        ),
+        gemini_api_key=(
+            _env("OPENTERMINALUI_GEMINI_API_KEY")
+            or _env("GEMINI_API_KEY")
+            or app_cfg.get("gemini_api_key")
         ),
         lm_studio_model=(
             _env("OPENTERMINALUI_LM_STUDIO_MODEL")
