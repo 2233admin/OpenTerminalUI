@@ -20,7 +20,7 @@ export const GapBadge: React.FC<GapBadgeProps> = ({ gap }) => (
   <div className={`flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${
     gap.gapType === "gap_up" ? "bg-green-900/40 text-green-400 border border-green-800/50" :
     gap.gapType === "gap_down" ? "bg-red-900/40 text-red-400 border border-red-800/50" :
-    "bg-gray-800 text-gray-400 border border-gray-700"
+    "bg-terminal-bg text-terminal-muted border border-terminal-border"
   }`}>
     <span className="opacity-70">GAP</span>
     <span>

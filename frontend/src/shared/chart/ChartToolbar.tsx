@@ -162,7 +162,7 @@ export function SharedChartToolbar({
               disabled={isDailyPlus}
               className={`px-2 py-0.5 rounded-sm border text-[10px] font-bold uppercase transition-colors ${
                 extended
-                  ? "bg-blue-600/20 border-blue-500 text-blue-400"
+                  ? "bg-terminal-accent/20 border-terminal-accent text-terminal-accent"
                   : "bg-transparent border-terminal-border text-terminal-muted hover:text-terminal-text"
               } ${isDailyPlus ? "opacity-30 cursor-not-allowed" : ""}`}
               onClick={() => onExtendedChange?.(!extended)}

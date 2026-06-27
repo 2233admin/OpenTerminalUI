@@ -123,7 +123,7 @@ function HoldingsFallback({ data }: { data: ShareholdingPatternResponse }) {
           <tbody>
             {holders.length ? (
               holders.slice(0, 20).map((row, idx) => (
-                <tr key={`${row.holder}-${idx}`} className="border-b border-gray-800">
+                <tr key={`${row.holder}-${idx}`} className="border-b border-terminal-border">
                   <td className="px-3 py-2">{row.holder}</td>
                   <td className="px-3 py-2 tabular-nums">{formatInt(row.shares)}</td>
                   <td className={`px-3 py-2 tabular-nums ${row.change >= 0 ? "text-terminal-pos" : "text-terminal-neg"}`}>{row.change.toFixed(2)}</td>

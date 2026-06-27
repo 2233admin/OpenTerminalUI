@@ -143,13 +143,13 @@ export function OpsDashboardPage() {
                <div className="space-y-2 p-1 text-[10px]">
                   <div className="flex justify-between items-center">
                     <span>SECTOR: TECHNOLOGY</span>
-                    <div className="h-1.5 w-32 bg-gray-800 rounded-full overflow-hidden">
+                    <div className="h-1.5 w-32 bg-terminal-border rounded-full overflow-hidden">
                       <div className="h-full bg-terminal-pos" style={{ width: '65%' }} />
                     </div>
                   </div>
                   <div className="flex justify-between items-center">
                     <span>SECTOR: FINANCIALS</span>
-                    <div className="h-1.5 w-32 bg-gray-800 rounded-full overflow-hidden">
+                    <div className="h-1.5 w-32 bg-terminal-border rounded-full overflow-hidden">
                       <div className="h-full bg-terminal-neg" style={{ width: '92%' }} />
                     </div>
                   </div>

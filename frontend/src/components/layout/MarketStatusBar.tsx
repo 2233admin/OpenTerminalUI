@@ -28,7 +28,7 @@ function Dot({ tone }: { tone: "green" | "yellow" | "red" | "gray" }) {
         ? "text-amber-400"
         : tone === "red"
           ? "text-rose-400"
-          : "text-gray-500";
+          : "text-terminal-muted";
   return <CircleDot className={`h-3.5 w-3.5 ${cls}`} fill="currentColor" />;
 }
 

@@ -34,7 +34,7 @@ export function IVSmileChart({ contracts, spotPrice }: Props) {
   }, [contracts]);
 
   if (data.length === 0) {
-    return <div className="p-4 text-sm text-zinc-500">No IV data available</div>;
+    return <div className="p-4 text-sm text-terminal-muted">No IV data available</div>;
   }
 
   return (

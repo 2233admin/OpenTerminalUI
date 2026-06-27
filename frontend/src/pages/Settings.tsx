@@ -14,7 +14,6 @@ import type { AlertRule, CountryCode, MarketCode } from "../types";
 import type { ScheduledReport } from "../types";
 
 export function SettingsPage() {
-  console.log("Rendering SettingsPage");
   const selectedCountry = useSettingsStore((s) => s.selectedCountry);
   const selectedMarket = useSettingsStore((s) => s.selectedMarket);
   const displayCurrency = useSettingsStore((s) => s.displayCurrency);
@@ -47,7 +46,6 @@ export function SettingsPage() {
     try {
       setError(null);
       const [alertsRes, reportsRes] = await Promise.all([fetchAlerts(), fetchScheduledReports()]);
-      console.log("Settings data loaded:", { alerts: alertsRes.length, reports: reportsRes.length });
       setAlerts(alertsRes || []);
       setScheduled(reportsRes || []);
     } catch (e) {

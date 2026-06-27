@@ -38,7 +38,7 @@ export function QuickRangeButtons({ activeRange, onSelect }: Props) {
             ${
               activeRange === p.label
                 ? "border-amber-500/40 bg-amber-500/20 text-amber-400"
-                : "border-transparent text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                : "border-transparent text-terminal-muted hover:bg-terminal-panel hover:text-terminal-text"
             }`}
         >
           {p.label}

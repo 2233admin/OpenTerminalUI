@@ -57,7 +57,7 @@ export function FreshnessBadge({ lastUpdate, exchange }: Props) {
   let label: string;
 
   if (status === "closed" || status === "holiday") {
-    color = "text-zinc-500";
+    color = "text-terminal-muted";
     label = "Market closed";
   } else if (stale < 10) {
     color = "text-emerald-400";
@@ -82,7 +82,7 @@ export function FreshnessBadge({ lastUpdate, exchange }: Props) {
     <div className={`flex items-center gap-1.5 text-xs font-mono ${color}`}>
       <span className="inline-block h-2 w-2 rounded-full bg-current" />
       <span>{label}</span>
-      <span className="ml-1 text-zinc-600">{timeStr}</span>
+      <span className="ml-1 text-terminal-muted">{timeStr}</span>
     </div>
   );
 }

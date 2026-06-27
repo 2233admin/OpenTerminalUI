@@ -41,7 +41,7 @@ export function UnderlyingPresets({ market, active, onSelect }: Props) {
             ${
               active === p.underlying
                 ? "border-amber-500/40 bg-amber-500/20 text-amber-400"
-                : "border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
+                : "border-terminal-border text-terminal-muted hover:border-terminal-accent hover:text-terminal-text"
             }`}
         >
           {p.label}
