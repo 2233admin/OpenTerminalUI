@@ -35,6 +35,16 @@ ANALYSIS_CHECKLIST = (
     "- Risks: what would break the thesis."
 )
 
+SCREENER_DISCIPLINE = (
+    "Screener discipline: when the user asks to find, screen, scan, filter, shortlist, rank, or identify "
+    "stocks matching criteria, you MUST call screen_stocks first with the user's filter language preserved "
+    "in query. Choose the market/universe from screen context when available; otherwise use IN/nse_500 for "
+    "India-language prompts and US/sp_500 for US-language prompts. After screen_stocks returns, analyze the "
+    "filters_applied, analysis, top_candidates, and results fields to explain which names fit the task. "
+    "If no rows match, state whether the filter may be too strict or data is unavailable, then suggest one "
+    "specific relaxed filter."
+)
+
 
 def compose(*parts: str) -> str:
     """Join non-empty prompt fragments with blank lines between them."""
@@ -48,6 +58,7 @@ GENERALIST_SYSTEM_PROMPT = compose(
     "reasoning behind them.",
     EVIDENCE_DISCIPLINE,
     ANALYSIS_CHECKLIST,
+    SCREENER_DISCIPLINE,
     "Escalate evidence from fundamentals (screen_stocks or get_stock_snapshot) to technicals, then synthesis. "
     "Use analyze_technicals for a named stock whenever the user asks about its chart, trend, momentum, entry, or how it looks. "
     "Use scan_setups to find technical setups across a universe before comparing candidates. After technicals, you may validate a thesis with backtest_symbol for a simple trend strategy on one name or backtest_basket for momentum rotation on a screened list. "

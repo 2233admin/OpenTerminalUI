@@ -50,3 +50,9 @@ def test_classify_intent_keywords():
 def test_invalid_configured_models_do_not_remove_safety_net():
     settings = AppSettings(agent_models_tool_use=["paid/model", "qwen/qwen3-coder:free"])
     _assert_safe_chain(select_chain(TaskProfile(phase="tool_use"), settings))
+
+
+def test_disable_model_fallbacks_uses_only_agent_model():
+    settings = AppSettings(agent_model="openrouter/model", agent_disable_model_fallbacks=True)
+    assert select_chain(TaskProfile(phase="tool_use"), settings) == ["openrouter/model"]
+    assert select_chain(TaskProfile(phase="synthesis"), settings) == ["openrouter/model"]

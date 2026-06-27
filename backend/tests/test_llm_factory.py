@@ -16,6 +16,21 @@ def test_openrouter_provider_config(monkeypatch):
         s.get_settings.cache_clear()
 
 
+def test_openrouter_provider_can_disable_fallback_models(monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-x")
+    monkeypatch.setenv("AGENT_MODEL", "openrouter/model")
+    monkeypatch.setenv("AGENT_FALLBACK_MODELS", "a/free:free,b/free:free")
+    monkeypatch.setenv("AGENT_DISABLE_MODEL_FALLBACKS", "true")
+    import backend.config.settings as s
+    s.get_settings.cache_clear()
+    try:
+        p = get_llm_provider(provider="openrouter")
+        assert p.model == "openrouter/model"
+        assert p.fallback_models == []
+    finally:
+        s.get_settings.cache_clear()
+
+
 def test_lmstudio_provider_uses_lm_settings():
     p = get_llm_provider(provider="lmstudio")
     assert p.base_url.endswith("/v1")

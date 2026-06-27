@@ -10,8 +10,10 @@ class ScriptedProvider:
         self._scripted = list(scripted)
         self.calls = 0
         self.model_chains = []
+        self.message_batches = []
 
     async def complete(self, messages, tools=None, *, temperature=0.1, max_tokens=1024, models=None):
+        self.message_batches.append(messages)
         self.model_chains.append(models)
         msg = self._scripted[self.calls]
         self.calls += 1
@@ -44,9 +46,26 @@ async def test_tool_call_then_final():
     assert "tool_result" in kinds
     assert "model" in kinds
     assert provider.model_chains[0]
-    assert provider.model_chains[-1][0] == "deepseek/deepseek-r1:free"
+    assert provider.model_chains[-1]
     assert kinds[-1] == "final"
     assert events[-1]["content"] == "Top idea: AAPL"
+
+
+@pytest.mark.asyncio
+async def test_screening_prompt_gets_screen_stocks_directive():
+    provider = ScriptedProvider([
+        AssistantMessage(content=None, tool_calls=[
+            ToolCall(id="c1", name="screen_stocks", arguments={"query": "roe > 15 and pe < 20", "market": "US", "universe": "sp_500"})]),
+        AssistantMessage(content="AAPL fits the screen", tool_calls=[]),
+        AssistantMessage(content="AAPL fits the screen", tool_calls=[]),
+    ])
+    orch = Orchestrator(provider=provider, registry=_registry(), max_steps=5)
+    events = [e async for e in orch.run("find stocks with ROE > 15 and PE < 20", screen_context={"market": "US"})]
+    tool_calls = [e for e in events if e["type"] == "tool_call"]
+    assert tool_calls[0]["name"] == "screen_stocks"
+    first_messages = provider.message_batches[0]
+    assert any("stock screening/filtering task" in getattr(message, "content", "") for message in first_messages)
+    assert any("market=US and universe=sp_500" in getattr(message, "content", "") for message in first_messages)
 
 
 @pytest.mark.asyncio

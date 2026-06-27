@@ -72,6 +72,7 @@ class AppSettings(BaseModel):
             "google/gemini-2.0-flash-exp:free",
         ]
     )
+    agent_disable_model_fallbacks: bool = False
     agent_max_steps: int = 12
     agent_deep_max_steps: int = 24
     agent_debate_enabled: bool = False
@@ -297,6 +298,11 @@ def get_settings() -> AppSettings:
             _parse_cors_env(_env("OPENTERMINALUI_AGENT_MODELS_GENERAL") or _env("AGENT_MODELS_GENERAL"))
             or app_cfg.get("agent_models_general")
             or ["openai/gpt-oss-20b:free", "google/gemini-2.0-flash-exp:free"]
+        ),
+        agent_disable_model_fallbacks=_as_bool(
+            _env("OPENTERMINALUI_AGENT_DISABLE_MODEL_FALLBACKS", "AGENT_DISABLE_MODEL_FALLBACKS")
+            or app_cfg.get("agent_disable_model_fallbacks", False),
+            default=False,
         ),
         agent_max_steps=int(
             _env("OPENTERMINALUI_AGENT_MAX_STEPS")

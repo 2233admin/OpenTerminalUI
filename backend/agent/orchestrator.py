@@ -57,6 +57,32 @@ class Orchestrator:
             )
         return "\n".join(parts)
 
+    @staticmethod
+    def _looks_like_screening_task(prompt: str) -> bool:
+        text = prompt.lower()
+        screening_terms = (
+            "find", "screen", "screener", "scan", "filter", "shortlist",
+            "rank", "stocks with", "companies with", "matching", "criteria",
+        )
+        metric_terms = (
+            "pe", "p/e", "roe", "roce", "debt", "market cap", "growth",
+            "margin", "dividend", "value", "quality", "momentum", "breakout",
+        )
+        return any(term in text for term in screening_terms) and any(term in text for term in metric_terms)
+
+    @staticmethod
+    def _screening_directive(prompt: str, screen_context: dict[str, Any] | None) -> str:
+        market = str((screen_context or {}).get("market") or "").strip().upper()
+        universe = "sp_500" if market == "US" else "nse_500"
+        return (
+            "This user request is a stock screening/filtering task. Before answering, call the "
+            "screen_stocks tool exactly once using the user's criteria as the query unless a prior "
+            "tool result in this run already contains screen_stocks output. "
+            f"Default to market={market or 'IN'} and universe={universe} if the user does not specify them. "
+            "Base the shortlist and explanation on the tool result's filters_applied, analysis, "
+            "top_candidates, and results fields."
+        )
+
     async def run(
         self, user_prompt: str, *, screen_context: dict[str, Any] | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
@@ -73,6 +99,11 @@ class Orchestrator:
             messages.append(LLMMessage(
                 role="system",
                 content=self._context_directive(screen_context),
+            ))
+        if self._looks_like_screening_task(user_prompt):
+            messages.append(LLMMessage(
+                role="system",
+                content=self._screening_directive(user_prompt, screen_context),
             ))
         messages.append(LLMMessage(role="user", content=user_prompt))
 

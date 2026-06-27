@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import math
+import re
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -26,6 +27,7 @@ from backend.core.backtest_robustness import multi_window_robustness, permutatio
 _AGENT_SCREEN_FIELDS = (
     "ticker", "company", "sector", "industry", "price", "market_cap",
     "pe", "pb", "roe", "roce", "debt_equity", "revenue_growth", "dividend_yield",
+    "composite_score", "quality", "value", "momentum",
 )
 
 _DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
@@ -45,6 +47,98 @@ def _safe_float(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return result if math.isfinite(result) else None
+
+
+def _safe_mean(values: list[float]) -> float | None:
+    finite = [value for value in values if math.isfinite(value)]
+    if not finite:
+        return None
+    return sum(finite) / len(finite)
+
+
+def _compact_screen_row(row: dict[str, Any]) -> dict[str, Any]:
+    return {key: row.get(key) for key in _AGENT_SCREEN_FIELDS if key in row}
+
+
+def _screen_candidate_reason(row: dict[str, Any]) -> list[str]:
+    reasons: list[str] = []
+    pe = _safe_float(row.get("pe"))
+    roe = _safe_float(row.get("roe"))
+    roce = _safe_float(row.get("roce"))
+    debt_equity = _safe_float(row.get("debt_equity"))
+    growth = _safe_float(row.get("revenue_growth"))
+    dividend = _safe_float(row.get("dividend_yield"))
+    if pe is not None:
+        reasons.append(f"P/E {pe:.1f}")
+    if roe is not None:
+        reasons.append(f"ROE {roe:.1f}%")
+    if roce is not None:
+        reasons.append(f"ROCE {roce:.1f}%")
+    if debt_equity is not None:
+        reasons.append(f"Debt/equity {debt_equity:.2f}")
+    if growth is not None:
+        reasons.append(f"Revenue growth {growth:.1f}%")
+    if dividend is not None and dividend > 0:
+        reasons.append(f"Dividend yield {dividend:.1f}%")
+    return reasons[:4]
+
+
+def _screen_analysis(rows: list[dict[str, Any]], count: int) -> dict[str, Any]:
+    sector_counts: dict[str, int] = {}
+    pe_values: list[float] = []
+    roe_values: list[float] = []
+    roce_values: list[float] = []
+    for row in rows:
+        sector = str(row.get("sector") or "Unclassified")
+        sector_counts[sector] = sector_counts.get(sector, 0) + 1
+        pe = _safe_float(row.get("pe"))
+        roe = _safe_float(row.get("roe"))
+        roce = _safe_float(row.get("roce"))
+        if pe is not None:
+            pe_values.append(pe)
+        if roe is not None:
+            roe_values.append(roe)
+        if roce is not None:
+            roce_values.append(roce)
+
+    top_sectors = sorted(sector_counts.items(), key=lambda item: item[1], reverse=True)[:5]
+    return {
+        "matched": count,
+        "returned": len(rows),
+        "top_sectors": [{"sector": sector, "count": amount} for sector, amount in top_sectors],
+        "averages": {
+            "pe": _safe_mean(pe_values),
+            "roe": _safe_mean(roe_values),
+            "roce": _safe_mean(roce_values),
+        },
+        "interpretation": (
+            "Use these rows as candidates that passed the requested filter. "
+            "Rank candidates by how many supplied metrics support the user's stated task; "
+            "do not claim metrics that are missing from a row."
+        ),
+    }
+
+
+_SCREENER_QUERY_ALIASES = (
+    (re.compile(r"\bpe_ratio\b", re.IGNORECASE), "pe"),
+    (re.compile(r"\bp/e\b", re.IGNORECASE), "pe"),
+    (re.compile(r"\bprice_to_earnings\b", re.IGNORECASE), "pe"),
+    (re.compile(r"\bpb_ratio\b", re.IGNORECASE), "pb"),
+    (re.compile(r"\bprice_to_book\b", re.IGNORECASE), "pb"),
+    (re.compile(r"\broe_pct\b", re.IGNORECASE), "roe"),
+    (re.compile(r"\broce_pct\b", re.IGNORECASE), "roce"),
+    (re.compile(r"\bdebt_to_equity\b", re.IGNORECASE), "debt_equity"),
+    (re.compile(r"\bdebt_equity_ratio\b", re.IGNORECASE), "debt_equity"),
+    (re.compile(r"\brevenue_growth_pct\b", re.IGNORECASE), "revenue_growth"),
+    (re.compile(r"\bdividend_yield_pct\b", re.IGNORECASE), "dividend_yield"),
+)
+
+
+def _normalize_screener_query(query: str) -> str:
+    normalized = query.strip()
+    for pattern, replacement in _SCREENER_QUERY_ALIASES:
+        normalized = pattern.sub(replacement, normalized)
+    return normalized
 
 
 def _technical_empty(ticker: str, note: str) -> dict[str, Any]:
@@ -282,7 +376,8 @@ async def screen_stocks(args: dict[str, Any]) -> dict[str, Any]:
     over it even when data is unavailable — a failed tool call would just abort
     the run. Errors/empties come back as ``count: 0`` with a ``note``.
     """
-    query = str(args.get("query", ""))
+    raw_query = str(args.get("query", ""))
+    query = _normalize_screener_query(raw_query)
     universe = str(args.get("universe", "nse_500"))
     market = str(args.get("market", "IN"))
     try:
@@ -293,7 +388,19 @@ async def screen_stocks(args: dict[str, Any]) -> dict[str, Any]:
     def _empty(note: str, hydrated: int = 0) -> dict[str, Any]:
         return {
             "query": query, "market": market, "universe": universe,
-            "count": 0, "hydrated_rows": hydrated, "results": [], "note": note,
+            "filters_applied": {
+                "raw_expression": raw_query,
+                "expression": query,
+                "market": market,
+                "universe": universe,
+                "limit": limit,
+            },
+            "count": 0,
+            "hydrated_rows": hydrated,
+            "analysis": _screen_analysis([], 0),
+            "top_candidates": [],
+            "results": [],
+            "note": note,
         }
 
     # The screener reads a materialized store populated lazily. The HTTP route
@@ -312,14 +419,32 @@ async def screen_stocks(args: dict[str, Any]) -> dict[str, Any]:
         return _empty(f"Screener could not run: {exc}", hydrated)
 
     rows = result.get("results", []) if isinstance(result, dict) else []
-    trimmed = [{k: row.get(k) for k in _AGENT_SCREEN_FIELDS if k in row} for row in rows]
+    trimmed = [_compact_screen_row(row) for row in rows]
     count = int(result.get("total_results", len(trimmed))) if isinstance(result, dict) else len(trimmed)
+    top_candidates = [
+        {
+            "ticker": row.get("ticker"),
+            "company": row.get("company"),
+            "sector": row.get("sector"),
+            "fit_reasons": _screen_candidate_reason(row),
+        }
+        for row in trimmed[: min(5, len(trimmed))]
+    ]
     payload = {
         "query": result.get("query_parsed", query) if isinstance(result, dict) else query,
         "market": market,
         "universe": universe,
+        "filters_applied": {
+            "raw_expression": raw_query,
+            "expression": result.get("query_parsed", query) if isinstance(result, dict) else query,
+            "market": market,
+            "universe": universe,
+            "limit": limit,
+        },
         "count": count,
         "hydrated_rows": hydrated,
+        "analysis": _screen_analysis(trimmed, count),
+        "top_candidates": top_candidates,
         "results": trimmed,
     }
     if count == 0:
@@ -556,8 +681,10 @@ def build_default_registry() -> ToolRegistry:
     reg = ToolRegistry()
     reg.register(ToolSpec(
         name="screen_stocks",
-        description="Find stocks matching filter expressions (e.g. 'pe_ratio < 20 and roe > 15'). "
-                    "Returns matching rows with fundamentals.",
+        description="Required first tool for user requests that ask to find, screen, scan, filter, "
+                    "shortlist, rank, or identify stocks matching criteria. Accepts natural filter "
+                    "language or expressions (e.g. 'pe_ratio < 20 and roe > 15') and returns "
+                    "filters_applied, analysis, top_candidates, and matching fundamental rows.",
         parameters={
             "type": "object",
             "properties": {

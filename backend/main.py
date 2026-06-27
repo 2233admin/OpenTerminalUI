@@ -174,6 +174,8 @@ def spa_entry(full_path: str) -> FileResponse:
     requested = _frontend_dist / full_path
     if full_path and requested.exists() and requested.is_file():
         return FileResponse(requested)
+    if full_path and (Path(full_path).suffix or full_path.startswith("assets/")):
+        raise HTTPException(status_code=404, detail="Static asset not found")
     index_file = _frontend_dist / "index.html"
     if index_file.exists():
         return FileResponse(index_file)

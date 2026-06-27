@@ -1,4 +1,4 @@
-const CACHE_NAME = "otui-static-v4";
+const CACHE_NAME = "otui-static-v5";
 const ASSETS = ["/manifest.json", "/favicon.png", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -41,12 +41,17 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Cache-first for static assets.
+  // Cache-first for static assets. Do not cache HTML for asset requests; that
+  // turns stale chunk URLs into JavaScript MIME errors after a rebuild.
   event.respondWith(
     caches.match(request).then((cached) => {
       if (cached) return cached;
       return fetch(request).then((resp) => {
-        const shouldCache = url.origin === self.location.origin && resp.ok;
+        const contentType = resp.headers.get("content-type") || "";
+        const shouldCache =
+          url.origin === self.location.origin &&
+          resp.ok &&
+          !contentType.includes("text/html");
         if (shouldCache) {
           const copy = resp.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)).catch(() => {});

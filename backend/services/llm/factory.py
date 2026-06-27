@@ -27,7 +27,9 @@ def get_llm_provider(
                 "X-Title": "OpenTerminalUI Agent",
             },
             # Free models are flaky (429/404); try the configured free chain.
-            fallback_models=[m for m in (settings.agent_fallback_models or []) if m != (model or settings.agent_model)],
+            fallback_models=[] if settings.agent_disable_model_fallbacks else [
+                m for m in (settings.agent_fallback_models or []) if m != (model or settings.agent_model)
+            ],
         )
     if provider == "openai":
         return OpenAICompatibleProvider(

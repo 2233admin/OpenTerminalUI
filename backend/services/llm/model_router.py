@@ -54,6 +54,10 @@ def _free_models(settings: Any, field: str, defaults: list[str]) -> list[str]:
 
 def select_chain(profile: TaskProfile, settings: Any) -> list[str]:
     """Return a non-empty ordered free-model chain for a unit of agent work."""
+    if getattr(settings, "agent_disable_model_fallbacks", False):
+        model = str(getattr(settings, "agent_model", "") or "").strip()
+        return [model] if model else [SAFETY_MODEL]
+
     tool_use = _free_models(settings, "agent_models_tool_use", DEFAULT_TOOL_USE_MODELS)
     reasoning = _free_models(settings, "agent_models_reasoning", DEFAULT_REASONING_MODELS)
     general = _free_models(settings, "agent_models_general", DEFAULT_GENERAL_MODELS)

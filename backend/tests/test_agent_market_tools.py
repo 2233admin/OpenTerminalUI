@@ -25,13 +25,36 @@ async def test_screen_stocks_calls_engine(monkeypatch):
     monkeypatch.setattr(mt, "ScreenerEngine", lambda: FakeEngine())
     monkeypatch.setattr(mt, "_hydrate_missing_universe_rows", fake_hydrate)
     out = await mt.screen_stocks({"query": "pe_ratio < 20", "limit": 5, "market": "US", "universe": "sp_500"})
-    assert captured["query"] == "pe_ratio < 20"
+    assert captured["query"] == "pe < 20"
     assert captured["limit"] == 5
     # The tool must hydrate before running, else the materialized store is empty.
     assert captured["hydrated"] == ("sp_500", "US")
     assert out["count"] == 1
+    assert out["filters_applied"]["expression"] == "pe < 20"
+    assert out["analysis"]["matched"] == 1
+    assert out["top_candidates"][0]["fit_reasons"] == ["P/E 18.0", "ROE 30.0%"]
     assert out["results"][0]["ticker"] == "AAPL"
     assert out["results"][0]["roe"] == 30
+
+
+@pytest.mark.asyncio
+async def test_screen_stocks_normalizes_agent_field_aliases(monkeypatch):
+    captured = {}
+
+    class FakeEngine:
+        def run(self, config):
+            captured["query"] = config.query
+            return {"results": [], "total_results": 0, "query_parsed": config.query}
+
+    async def fake_hydrate(universe, market):
+        return 0
+
+    monkeypatch.setattr(mt, "ScreenerEngine", lambda: FakeEngine())
+    monkeypatch.setattr(mt, "_hydrate_missing_universe_rows", fake_hydrate)
+    out = await mt.screen_stocks({"query": "roe_pct > 15 and pe_ratio < 20 and debt_to_equity < 0.5", "market": "US", "universe": "sp_500"})
+    assert captured["query"] == "roe > 15 and pe < 20 and debt_equity < 0.5"
+    assert out["filters_applied"]["raw_expression"] == "roe_pct > 15 and pe_ratio < 20 and debt_to_equity < 0.5"
+    assert out["filters_applied"]["expression"] == "roe > 15 and pe < 20 and debt_equity < 0.5"
 
 
 @pytest.mark.asyncio
