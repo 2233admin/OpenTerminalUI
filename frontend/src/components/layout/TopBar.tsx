@@ -282,7 +282,7 @@ export function TopBar({ hideTickerLoader = false, hideMarketMarquee = false }: 
 
   return (
     <div className="relative z-20 border-b border-terminal-border bg-terminal-panel">
-      <div className="relative flex items-center gap-2 px-3 py-1.5">
+      <div className="relative flex items-center gap-2 overflow-x-auto px-3 py-1.5">
         <Link
           to="/"
           className="inline-flex h-7 items-center rounded border border-terminal-border bg-terminal-bg px-1.5"
@@ -308,7 +308,7 @@ export function TopBar({ hideTickerLoader = false, hideMarketMarquee = false }: 
           </Link>
         </div>
         {!hideTickerLoader ? (
-          <div className="ml-2 flex min-w-[360px] flex-[1.4] items-center gap-1 xl:min-w-[460px]">
+          <div className="ml-2 flex min-w-0 flex-[1.4] items-center gap-1 md:min-w-[360px] xl:min-w-[460px]">
             <input
               ref={searchInputRef}
               className="w-full rounded border border-terminal-border bg-terminal-bg px-2 py-1 text-xs outline-none focus:border-terminal-accent"

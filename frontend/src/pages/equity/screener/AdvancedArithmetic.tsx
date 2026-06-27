@@ -15,7 +15,7 @@ export function AdvancedArithmetic() {
 
   return (
     <TerminalPanel title="Advanced Arithmetic" subtitle="Expression Builder" bodyClassName="space-y-1">
-      <div className="grid grid-cols-5 gap-1">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-1">
         <TerminalInput value={left} onChange={(event) => setLeft(event.target.value)} />
         <TerminalInput value={op} onChange={(event) => setOp(event.target.value)} />
         <TerminalInput value={right} onChange={(event) => setRight(event.target.value)} />

@@ -248,17 +248,17 @@ function SnapshotCard({ data }: { data: Snapshot }) {
       </div>
 
       {/* metric grids */}
-      <div className="grid grid-cols-3 gap-1.5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
         {valuation.map(([l, v]) => (
           <Metric key={l} label={l} value={v == null ? "—" : v.toFixed(2)} />
         ))}
       </div>
-      <div className="grid grid-cols-4 gap-1.5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
         {profitability.map(([l, v]) => (
           <Metric key={l} label={l} value={v == null ? "—" : `${v.toFixed(2)}%`} />
         ))}
       </div>
-      <div className="grid grid-cols-3 gap-1.5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
         {growth.map(([l, v, signed]) => (
           <Metric
             key={l}
