@@ -55,7 +55,7 @@ const categoryLabels: Record<string, string> = {
 const tabItems: Array<{ id: ScreenerTab; label: string; icon: typeof Sparkles }> = [
   { id: "library", label: "Library", icon: Sparkles },
   { id: "custom", label: "Custom", icon: SlidersHorizontal },
-  { id: "formula", label: "Formula", icon: Columns3 },
+  { id: "formula", label: "Custom Formula", icon: Columns3 },
   { id: "saved", label: "Saved", icon: Bookmark },
   { id: "public", label: "Public", icon: Share2 },
 ];
@@ -76,7 +76,7 @@ function splitFilters(query: string) {
 function ScreenerWorkspace() {
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [queryOpen, setQueryOpen] = useState(false);
+  const [queryOpen, setQueryOpen] = useState(true);
   const [scanOpen, setScanOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const {
