@@ -104,7 +104,7 @@ export function SharedChartToolbar({
 
   return (
     <div className="rounded border border-terminal-border bg-terminal-panel px-3 py-1.5 text-xs">
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         {/* Market Data Strip */}
         <div className="flex items-center gap-3 border-r border-terminal-border pr-4">
           <TerminalBadge variant="accent" size="sm">

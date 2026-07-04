@@ -100,6 +100,7 @@ export function ChartEngine({
     volume: null, oi: null, delivery: null, sessionShading: null
   });
   const footprintCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const footprintPinnedRef = useRef<boolean>(false);
   const footprintRenderRef = useRef<(() => void) | null>(null);
   const footprintCandlesRef = useRef<FootprintCandleLike[]>([]);
   const isFootprintModeRef = useRef<boolean>(false);
@@ -200,8 +201,34 @@ export function ChartEngine({
 
   useEffect(() => {
     footprintCandlesRef.current = footprintCandles;
+    // In footprint mode the (transparent) candle series drives the price/time scale that the
+    // footprint canvas maps against. Feed it the footprint candles' own OHLC so cells always land
+    // inside the visible range even when the chart's base bars differ from the footprint feed.
+    if (isFootprintMode && footprintCandles.length) {
+      const s = seriesRef.current;
+      if (s.candles) {
+        const fp = footprintCandles.map((candle) => ({
+          time: candle.timestamp as UTCTimestamp,
+          open: candle.open,
+          high: candle.high,
+          low: candle.low,
+          close: candle.close,
+        }));
+        s.candles.setData(fp as any);
+        // Every visible/hidden series must share the footprint timeline; otherwise a series still
+        // holding the wider base-bar history stretches the time scale and the footprint bars cluster
+        // into a small slice instead of spanning the whole chart.
+        const fpLine = fp.map((c) => ({ time: c.time, value: c.close }));
+        s.line?.setData(fpLine as any);
+        s.area?.setData(fpLine as any);
+        s.baseline?.setData(fpLine as any);
+        s.volume?.setData([]);
+        s.sessionShading?.setData([]);
+        footprintPinnedRef.current = false; // re-pin the view to the new footprint window on next render
+      }
+    }
     footprintRenderRef.current?.();
-  }, [footprintCandles]);
+  }, [footprintCandles, isFootprintMode]);
 
   useEffect(() => {
     if (!isFootprintMode) {
@@ -218,7 +245,11 @@ export function ChartEngine({
     url.searchParams.set("market", market);
     url.searchParams.set("price_granularity", String(granularity));
 
-    void fetch(url.toString(), { signal: controller.signal })
+    // The footprint endpoint is auth-guarded; a bare fetch 401s and silently falls back to a
+    // synthetic (often empty) series. Attach the stored bearer token like the axios client does.
+    const authToken = typeof localStorage !== "undefined" ? localStorage.getItem("ot-access-token") : null;
+    const fetchHeaders: Record<string, string> = authToken ? { Authorization: `Bearer ${authToken}` } : {};
+    void fetch(url.toString(), { signal: controller.signal, headers: fetchHeaders })
       .then(async (response) => {
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
@@ -350,6 +381,13 @@ export function ChartEngine({
       const canvas = footprintCanvasRef.current;
       const candleSeries = seriesRef.current.candles;
       const activeFootprint = footprintCandlesRef.current;
+      // Keep the overlay canvas exactly the size of the chart host. Without this the canvas kept its
+      // intrinsic 300px width while the chart mapped coordinates across its full (~1000px) pane, so
+      // every footprint column was clamped to the canvas's right edge and stacked into one block.
+      if (canvas && hostRef.current) {
+        canvas.style.width = `${hostRef.current.clientWidth}px`;
+        canvas.style.height = `${hostRef.current.clientHeight}px`;
+      }
       if (!canvas || !candleSeries || !activeFootprint.length || !isFootprintModeRef.current) {
         if (canvas) {
           const ctx = canvas.getContext("2d");
@@ -361,6 +399,21 @@ export function ChartEngine({
           }
         }
         return;
+      }
+      // Pin the visible range to the footprint window exactly once per data load. Doing it here (in the
+      // render path, which reliably runs with the populated ref) rather than in the state effect —
+      // whose closure was firing before the footprint state settled — so the columns span the chart.
+      if (!footprintPinnedRef.current && activeFootprint.length > 1) {
+        const firstT = activeFootprint[0]!.timestamp;
+        const lastT = activeFootprint[activeFootprint.length - 1]!.timestamp;
+        if (firstT !== lastT) {
+          try {
+            chart.timeScale().setVisibleRange({ from: firstT as UTCTimestamp, to: lastT as UTCTimestamp });
+            footprintPinnedRef.current = true;
+          } catch {
+            /* range not applicable yet; retry on next render */
+          }
+        }
       }
       renderFootprintCanvas(
         canvas,
@@ -441,7 +494,11 @@ export function ChartEngine({
       setChartApi(null);
       footprintRenderRef.current = null;
     };
-  }, [height, symbolIsFnO, chartTypeId, isFootprintMode]);
+    // NOTE: chartTypeId and isFootprintMode are intentionally NOT dependencies. Recreating the chart
+    // on a type/footprint switch tore down the series without the data effect (keyed on transformedBars)
+    // re-populating them, leaving line/area/baseline AND footprint blank. Type/footprint changes are
+    // handled by the visibility + data effects instead; the chart is only rebuilt for height / F&O.
+  }, [height, symbolIsFnO]);
 
   useEffect(() => {
     const s = seriesRef.current;
@@ -477,6 +534,9 @@ export function ChartEngine({
       extendedHours?.enabled ? "eth:1" : "eth:0",
       extendedHours?.showPreMarket ? "pre:1" : "pre:0",
       extendedHours?.showAfterHours ? "post:1" : "post:0",
+      // Toggling footprint changes which OHLC feeds the candle series; force a full
+      // setData (not an incremental tail update) so the series repopulates correctly.
+      isFootprintMode ? "fp:1" : "fp:0",
     ].join("|");
     const isIncremental =
       lastRenderConfigKeyRef.current === renderConfigKey &&
@@ -502,12 +562,32 @@ export function ChartEngine({
         showSessionShading: renderSessionShading,
         shadePalette: COMPACT_SESSION_SHADE_PALETTE,
       });
-      s.candles.setData(payload.candles as any);
-      s.line.setData(payload.closeLine);
-      s.area.setData(payload.closeLine);
-      s.baseline.setData(payload.closeLine);
-      s.volume.setData(payload.volume);
-      s.sessionShading.setData(payload.sessionShading);
+      if (isFootprintMode && footprintCandlesRef.current.length) {
+        const fpCandles = footprintCandlesRef.current.map((candle) => ({
+          time: candle.timestamp as UTCTimestamp,
+          open: candle.open,
+          high: candle.high,
+          low: candle.low,
+          close: candle.close,
+        }));
+        s.candles.setData(fpCandles as any);
+        // In footprint mode the other (hidden) series must NOT carry the wider base-bar history,
+        // otherwise the time scale spans that full range and the ~N footprint bars cluster into a
+        // small slice. Feed them the footprint timeline so the whole chart width shows footprint.
+        const fpLine = fpCandles.map((c) => ({ time: c.time, value: c.close }));
+        s.line.setData(fpLine as any);
+        s.area.setData(fpLine as any);
+        s.baseline.setData(fpLine as any);
+        s.volume.setData([]);
+        s.sessionShading.setData([]);
+      } else {
+        s.candles.setData(payload.candles as any);
+        s.line.setData(payload.closeLine);
+        s.area.setData(payload.closeLine);
+        s.baseline.setData(payload.closeLine);
+        s.volume.setData(payload.volume);
+        s.sessionShading.setData(payload.sessionShading);
+      }
     }
     if (transformedBars.length > 0) {
       s.baseline.applyOptions({
@@ -519,19 +599,26 @@ export function ChartEngine({
     lastBarsRef.current = transformedBars;
     lastRenderConfigKeyRef.current = renderConfigKey;
     s.volume.applyOptions({ visible: showVolume && !isFootprintMode });
+    // In footprint mode every non-footprint series must be emptied; otherwise their base-bar
+    // timestamps widen the shared time scale and fitContent can't zoom to the footprint bars,
+    // clustering them into a small slice of the chart.
     s.delivery.setData(
-      deliverySeries.map((row) => ({
-        time: Number(row.time) as UTCTimestamp,
-        value: Number(row.value),
-      })),
+      isFootprintMode
+        ? []
+        : deliverySeries.map((row) => ({
+            time: Number(row.time) as UTCTimestamp,
+            value: Number(row.value),
+          })),
     );
     s.delivery.applyOptions({ visible: showDeliveryOverlay && !isFootprintMode });
     s.sessionShading.applyOptions({ visible: showSessionShading && !isFootprintMode });
     s.oi?.setData(
-      transformedBars.map((b) => ({
-        time: Number(b.time) as UTCTimestamp,
-        value: Number(b.volume ?? 0),
-      })),
+      isFootprintMode
+        ? []
+        : transformedBars.map((b) => ({
+            time: Number(b.time) as UTCTimestamp,
+            value: Number(b.volume ?? 0),
+          })),
     );
 
     const ts = chartRef.current?.timeScale();
