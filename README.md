@@ -33,9 +33,167 @@
 
 OpenTerminalUI is a self-hosted, full-stack financial terminal that combines real-time market data, institutional-grade charting, derivatives analytics, portfolio management, and quant research into a single platform. Built with a terminal-style shell interface inspired by Bloomberg and Refinitiv, it delivers professional-grade workflows to anyone with a browser.
 
-**Multi-market coverage** across NSE, BSE, NYSE, NASDAQ, crypto, commodities, forex, bonds, ETFs, and mutual funds. **70+ technical indicators**, **multi-panel chart workstations**, **F&O option chains with live Greeks**, **backtesting with Model Lab**, **statistical arbitrage with Pair Trading Lab**, **portfolio analytics with risk engine**, a **tool-using AI research agent with multi-agent debate**, and an **extensible plugin system** &mdash; all running on your own hardware.
+**Multi-market coverage** across NSE, BSE, NYSE, NASDAQ, crypto, commodities, forex, bonds, ETFs, and mutual funds. **70+ technical indicators**, **multi-panel chart workstations**, **F&O option chains with live Greeks**, **backtesting with Model Lab**, **statistical arbitrage with Pair Trading Lab**, **Portfolio Lab and optimizer workflows**, **paper trading and trade journal**, **OMS / ops / data-quality consoles**, **saved views and launchpad workspaces**, a **tool-using AI research agent with multi-agent debate and Strategy Lab**, and an **extensible plugin system** &mdash; all running on your own hardware.
 
 ## Screenshots
+
+Captured from the rebuilt Docker image running at `http://localhost:8000`. Account-backed screens are seeded before capture so portfolio, watchlist, paper trading, and journal views show populated data.
+
+### Complete Feature Gallery
+
+#### Mission Control & Navigation
+
+| Mission Control | Launchpad |
+|---|---|
+| <img src="assets/screenshots/home.png" alt="Mission Control dashboard" width="420" /> | <img src="assets/screenshots/launchpad.png" alt="Launchpad workspace" width="420" /> |
+
+| Market Dashboard | Account |
+|---|---|
+| <img src="assets/screenshots/market-dashboard.png" alt="Market dashboard" width="420" /> | <img src="assets/screenshots/account.png" alt="Account settings and profile" width="420" /> |
+
+#### Equity Research & Markets
+
+| Market View | Security Hub |
+|---|---|
+| <img src="assets/screenshots/market-view.png" alt="AAPL market chart view" width="420" /> | <img src="assets/screenshots/stock-detail.png" alt="AAPL Security Hub" width="420" /> |
+
+| India Security Hub | Financial Analysis |
+|---|---|
+| <img src="assets/screenshots/security-hub-india.png" alt="RELIANCE Security Hub" width="420" /> | <img src="assets/screenshots/financial-analysis.png" alt="Financial statement analysis" width="420" /> |
+
+| Chart Workstation | Multi-Timeframe |
+|---|---|
+| <img src="assets/screenshots/chart-workstation.png" alt="Six-pane chart workstation" width="420" /> | <img src="assets/screenshots/multi-timeframe.png" alt="Multi-timeframe analysis" width="420" /> |
+
+| DOM | Time & Sales |
+|---|---|
+| <img src="assets/screenshots/dom.png" alt="Depth of market view" width="420" /> | <img src="assets/screenshots/time-and-sales.png" alt="Time and sales tape" width="420" /> |
+
+| Split Compare | Market Heatmap |
+|---|---|
+| <img src="assets/screenshots/split-compare.png" alt="Multi-symbol split comparison" width="420" /> | <img src="assets/screenshots/market-heatmap.png" alt="Market heatmap" width="420" /> |
+
+| Hotlists | Watchlist |
+|---|---|
+| <img src="assets/screenshots/hotlists.png" alt="Hotlists" width="420" /> | <img src="assets/screenshots/watchlist.png" alt="Populated watchlist" width="420" /> |
+
+| Screener | Factor Dashboard |
+|---|---|
+| <img src="assets/screenshots/screener.png" alt="Advanced screener after running a scan" width="420" /> | <img src="assets/screenshots/factor-dashboard.png" alt="Factor dashboard" width="420" /> |
+
+| Relative Strength | Sector Rotation |
+|---|---|
+| <img src="assets/screenshots/relative-strength.png" alt="Relative strength dashboard" width="420" /> | <img src="assets/screenshots/sector-rotation.png" alt="Sector rotation dashboard" width="420" /> |
+
+| Dividends | Insider Activity |
+|---|---|
+| <img src="assets/screenshots/dividends.png" alt="Dividend dashboard" width="420" /> | <img src="assets/screenshots/insider-activity.png" alt="Insider activity monitor" width="420" /> |
+
+#### Portfolio, Risk & Trading
+
+| Portfolio | Portfolio Lab |
+|---|---|
+| <img src="assets/screenshots/portfolio.png" alt="Populated portfolio with holdings and risk metrics" width="420" /> | <img src="assets/screenshots/portfolio-lab.png" alt="Portfolio Lab" width="420" /> |
+
+| Portfolio Optimizer | Risk Dashboard |
+|---|---|
+| <img src="assets/screenshots/portfolio-optimizer.png" alt="Portfolio optimizer" width="420" /> | <img src="assets/screenshots/risk-dashboard.png" alt="Risk dashboard" width="420" /> |
+
+| Correlation Dashboard | Cockpit |
+|---|---|
+| <img src="assets/screenshots/correlation-dashboard.png" alt="Correlation matrix dashboard" width="420" /> | <img src="assets/screenshots/cockpit.png" alt="Cockpit priority stack" width="420" /> |
+
+| Paper Trading | Position Sizer |
+|---|---|
+| <img src="assets/screenshots/paper-trading.png" alt="Populated paper trading workspace" width="420" /> | <img src="assets/screenshots/position-sizer.png" alt="Position sizing calculator" width="420" /> |
+
+| Trade Journal | Alerts |
+|---|---|
+| <img src="assets/screenshots/trade-journal.png" alt="Trade journal with seeded AAPL entry" width="420" /> | <img src="assets/screenshots/alerts.png" alt="Alerts console and alert builder" width="420" /> |
+
+#### Quant Research & Backtesting
+
+| Backtesting | Model Lab |
+|---|---|
+| <img src="assets/screenshots/backtesting.png" alt="Completed backtest results" width="420" /> | <img src="assets/screenshots/model-lab.png" alt="Model Lab" width="420" /> |
+
+| Model Governance | Algorithm Framework |
+|---|---|
+| <img src="assets/screenshots/model-governance.png" alt="Model governance" width="420" /> | <img src="assets/screenshots/algorithm-framework.png" alt="Algorithm framework lab" width="420" /> |
+
+| Statistical Lab | Pair Trading |
+|---|---|
+| <img src="assets/screenshots/stat-lab.png" alt="Statistical Lab" width="420" /> | <img src="assets/screenshots/pair-trading.png" alt="Pair Trading Lab with cointegration result" width="420" /> |
+
+#### Futures & Options
+
+| Option Chain | Greeks |
+|---|---|
+| <img src="assets/screenshots/fno-option-chain.png" alt="F&O option chain" width="420" /> | <img src="assets/screenshots/fno-greeks.png" alt="F&O Greeks page" width="420" /> |
+
+| Futures | OI Analysis |
+|---|---|
+| <img src="assets/screenshots/fno-futures.png" alt="Futures analytics" width="420" /> | <img src="assets/screenshots/fno-oi.png" alt="Open interest analysis" width="420" /> |
+
+| Strategy Builder | PCR |
+|---|---|
+| <img src="assets/screenshots/fno-strategy.png" alt="Options strategy builder" width="420" /> | <img src="assets/screenshots/fno-pcr.png" alt="Put-call ratio dashboard" width="420" /> |
+
+| Options Flow | F&O Heatmap |
+|---|---|
+| <img src="assets/screenshots/fno-flow.png" alt="Options flow dashboard" width="420" /> | <img src="assets/screenshots/fno-heatmap.png" alt="F&O heatmap" width="420" /> |
+
+| Expiry Calendar | Option Greeks Calculator |
+|---|---|
+| <img src="assets/screenshots/fno-expiry.png" alt="F&O expiry calendar" width="420" /> | <img src="assets/screenshots/option-greeks-calculator.png" alt="Option Greeks calculator" width="420" /> |
+
+#### Cross-Asset & Macro
+
+| Commodities | Forex |
+|---|---|
+| <img src="assets/screenshots/commodities.png" alt="Commodities workspace" width="420" /> | <img src="assets/screenshots/forex.png" alt="Forex workspace with EUR/USD detail" width="420" /> |
+
+| Crypto | ETF Analytics |
+|---|---|
+| <img src="assets/screenshots/crypto.png" alt="Crypto workspace" width="420" /> | <img src="assets/screenshots/etf-analytics.png" alt="ETF analytics for SPY" width="420" /> |
+
+| Mutual Funds | Bonds |
+|---|---|
+| <img src="assets/screenshots/mutual-funds.png" alt="Mutual funds workspace" width="420" /> | <img src="assets/screenshots/bonds.png" alt="Bonds workspace" width="420" /> |
+
+| Yield Curve | Bond Analytics |
+|---|---|
+| <img src="assets/screenshots/yield-curve.png" alt="Yield curve dashboard" width="420" /> | <img src="assets/screenshots/bond-analytics.png" alt="Bond analytics calculator" width="420" /> |
+
+| Economic Terminal | Data Quality |
+|---|---|
+| <img src="assets/screenshots/economic-terminal.png" alt="Economic terminal" width="420" /> | <img src="assets/screenshots/data-quality.png" alt="Data quality dashboard" width="420" /> |
+
+#### Intelligence, AI & Platform
+
+| News & Sentiment | Intelligence Timeline |
+|---|---|
+| <img src="assets/screenshots/news-sentiment.png" alt="News and sentiment for AAPL" width="420" /> | <img src="assets/screenshots/intelligence-timeline.png" alt="Intelligence timeline" width="420" /> |
+
+| AI Research Agent | Multi-Agent Debate |
+|---|---|
+| <img src="assets/screenshots/ai-agent.png" alt="AI research agent panel" width="420" /> | <img src="assets/screenshots/agent-debate.png" alt="Multi-agent debate panel" width="420" /> |
+
+| Strategy Lab Agent | Research Library |
+|---|---|
+| <img src="assets/screenshots/strategy-lab.png" alt="Strategy Lab agent result" width="420" /> | <img src="assets/screenshots/research.png" alt="Research library" width="420" /> |
+
+| OMS Compliance | Ops Dashboard |
+|---|---|
+| <img src="assets/screenshots/oms-compliance.png" alt="OMS compliance dashboard" width="420" /> | <img src="assets/screenshots/ops-dashboard.png" alt="Operations dashboard" width="420" /> |
+
+| Plugins | Settings |
+|---|---|
+| <img src="assets/screenshots/plugins.png" alt="Plugin manager" width="420" /> | <img src="assets/screenshots/settings.png" alt="Settings workspace" width="420" /> |
+
+| Saved Views |
+|---|
+| <img src="assets/screenshots/saved-views.png" alt="Saved views manager" width="420" /> |
 
 ### Workspace & Markets
 
