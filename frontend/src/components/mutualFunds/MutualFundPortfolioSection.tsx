@@ -4,6 +4,7 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { deleteMutualFundHolding, fetchMutualFundPortfolio } from "../../api/client";
 import type { PortfolioMutualFund } from "../../types";
 import { formatInr } from "../../utils/formatters";
+import { TerminalPanel } from "../terminal/TerminalPanel";
 
 const COLORS = ["#ff9f1a", "#00c176", "#4f91ff", "#ff4d4f", "#ffb74d", "#8e98a8"];
 
@@ -61,34 +62,32 @@ export function MutualFundPortfolioSection({ refreshToken = 0 }: Props) {
 
   return (
     <div className="space-y-3">
-      <div className="rounded border border-terminal-accent/40 bg-terminal-panel p-3 shadow-[0_0_0_1px_rgba(0,193,118,0.08)]">
-        <div className="mb-2 text-sm font-semibold">Mutual Fund Summary</div>
-        <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
-          <div className="rounded border border-terminal-accent/50 bg-terminal-bg px-3 py-2 text-xs">
-            <div className="text-[10px] uppercase tracking-wide text-terminal-muted">Total Invested</div>
-            <div className="mt-1 text-sm font-semibold text-terminal-text">{formatInr(summary.total_invested)}</div>
+      <TerminalPanel title="Mutual Fund Summary" subtitle="Value, returns, and current exposure">
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          <div className="rounded-md border border-terminal-border bg-terminal-bg/70 p-3">
+            <div className="text-[11px] uppercase tracking-wide text-terminal-muted">Total Invested</div>
+            <div className="mt-1 text-lg font-semibold text-terminal-text">{formatInr(summary.total_invested)}</div>
           </div>
-          <div className="rounded border border-terminal-border/80 bg-terminal-bg px-3 py-2 text-xs">
-            <div className="text-[10px] uppercase tracking-wide text-terminal-muted">Current Value</div>
-            <div className="mt-1 text-sm font-semibold text-terminal-text">{formatInr(summary.total_current_value)}</div>
+          <div className="rounded-md border border-terminal-border bg-terminal-bg/70 p-3">
+            <div className="text-[11px] uppercase tracking-wide text-terminal-muted">Current Value</div>
+            <div className="mt-1 text-lg font-semibold text-terminal-text">{formatInr(summary.total_current_value)}</div>
           </div>
-          <div className={`rounded border bg-terminal-bg px-3 py-2 text-xs ${summary.total_pnl >= 0 ? "border-terminal-pos/60" : "border-terminal-neg/60"}`}>
-            <div className="text-[10px] uppercase tracking-wide text-terminal-muted">Unrealized P&L</div>
-            <div className={`mt-1 text-sm font-semibold ${summary.total_pnl >= 0 ? "text-terminal-pos" : "text-terminal-neg"}`}>
+          <div className="rounded-md border border-terminal-border bg-terminal-bg/70 p-3">
+            <div className="text-[11px] uppercase tracking-wide text-terminal-muted">Unrealized P&L</div>
+            <div className={`mt-1 text-lg font-semibold ${summary.total_pnl >= 0 ? "text-terminal-pos" : "text-terminal-neg"}`}>
               {formatInr(summary.total_pnl)}
             </div>
           </div>
-          <div className={`rounded border bg-terminal-bg px-3 py-2 text-xs ${summary.total_pnl_pct >= 0 ? "border-terminal-pos/60" : "border-terminal-neg/60"}`}>
-            <div className="text-[10px] uppercase tracking-wide text-terminal-muted">Total Return</div>
-            <div className={`mt-1 text-sm font-semibold ${summary.total_pnl_pct >= 0 ? "text-terminal-pos" : "text-terminal-neg"}`}>
+          <div className="rounded-md border border-terminal-border bg-terminal-bg/70 p-3">
+            <div className="text-[11px] uppercase tracking-wide text-terminal-muted">Total Return</div>
+            <div className={`mt-1 text-lg font-semibold ${summary.total_pnl_pct >= 0 ? "text-terminal-pos" : "text-terminal-neg"}`}>
               {summary.total_pnl_pct.toFixed(2)}%
             </div>
           </div>
         </div>
-      </div>
+      </TerminalPanel>
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-12">
-        <div className="rounded border border-terminal-border bg-terminal-panel p-3 xl:col-span-8">
-          <div className="mb-2 text-sm font-semibold">Mutual Fund Holdings</div>
+        <TerminalPanel title="Mutual Fund Holdings" subtitle={`${items.length} positions`} className="xl:col-span-8">
           <div className="overflow-auto">
             {loading ? (
               <div className="text-xs text-terminal-muted">Loading mutual fund holdings...</div>
@@ -137,10 +136,9 @@ export function MutualFundPortfolioSection({ refreshToken = 0 }: Props) {
               </table>
             )}
           </div>
-        </div>
-        <div className="rounded border border-terminal-border bg-terminal-panel p-3 xl:col-span-4">
-          <div className="mb-2 text-sm font-semibold">Allocation by Category</div>
-          <div className="h-72 rounded border border-terminal-border bg-terminal-bg p-2">
+        </TerminalPanel>
+        <TerminalPanel title="Allocation by Category" subtitle="Current value distribution" className="xl:col-span-4">
+          <div className="h-72 rounded-md border border-terminal-border bg-terminal-bg/70 p-2">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie data={categoryData} dataKey="value" nameKey="name" outerRadius={100}>
@@ -152,7 +150,7 @@ export function MutualFundPortfolioSection({ refreshToken = 0 }: Props) {
               </PieChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </TerminalPanel>
       </div>
     </div>
   );

@@ -35,7 +35,9 @@ import { EarningsCalendar } from "../components/EarningsCalendar";
 import { EarningsDateBadge } from "../components/EarningsDateBadge";
 import { MutualFundPortfolioSection } from "../components/mutualFunds/MutualFundPortfolioSection";
 import { PortfolioEventsCalendar } from "../components/PortfolioEventsCalendar";
+import { TerminalBadge } from "../components/terminal/TerminalBadge";
 import { TerminalButton } from "../components/terminal/TerminalButton";
+import { TerminalPanel } from "../components/terminal/TerminalPanel";
 import { AiInsightCard } from "../components/terminal/AiInsightCard";
 import { SavedViewsControl } from "../components/savedViews/SavedViewsControl";
 import { ExportButton } from "../components/common/ExportButton";
@@ -515,35 +517,87 @@ export function PortfolioPage() {
     setMfSuggestionsOpen(false);
   };
 
-  if (portfolioMode === "mutual_funds") {
-    return (
-      <div className="space-y-3 p-4">
-        <div className="rounded border border-terminal-border bg-terminal-panel p-3">
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <div className="text-sm font-semibold uppercase tracking-wide text-terminal-accent">Portfolio</div>
-            <span className="rounded border border-terminal-border bg-terminal-bg px-2 py-0.5 text-[11px] text-terminal-muted">
-              Mode: Mutual Funds
-            </span>
+  const renderPortfolioHero = (tableColumns: string) => (
+    <section className="rounded-md border border-terminal-border/70 bg-terminal-panel/95 p-4 shadow-[0_10px_30px_rgba(0,0,0,0.18)] md:p-5">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <TerminalBadge variant="accent">Portfolio</TerminalBadge>
+            <TerminalBadge variant="neutral">{portfolioMode === "mutual_funds" ? "Mutual Funds" : "Equity"}</TerminalBadge>
+            <TerminalBadge variant="info">{portfolioView === "manager" ? "Portfolio Manager" : "Legacy"}</TerminalBadge>
           </div>
-          <div className="flex flex-wrap gap-1">
-            <button className="rounded border border-terminal-border px-2 py-1 text-xs text-terminal-muted" onClick={() => switchPortfolioMode("equity")}>
-              Equity
-            </button>
-            <button className="rounded border border-terminal-accent px-2 py-1 text-xs text-terminal-accent">
-              Mutual Funds
-            </button>
-            <Link className="rounded border border-terminal-border px-2 py-1 text-xs text-terminal-muted hover:border-terminal-accent hover:text-terminal-accent" to="/equity/portfolio/lab">
-              Open Portfolio Lab
-            </Link>
+          <h1 className="max-w-4xl font-sans text-2xl font-semibold tracking-normal text-terminal-text md:text-3xl">
+            Your holdings, positioned and monitored.
+          </h1>
+          <p className="mt-2 max-w-3xl font-sans text-sm leading-6 text-terminal-muted">
+            Track allocation, risk, returns, and upcoming portfolio events from one focused workspace.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 text-xs md:min-w-[420px]">
+          <div className="rounded-md border border-terminal-border bg-terminal-bg/70 p-3">
+            <div className="font-sans text-[11px] text-terminal-muted">Portfolio value</div>
+            <div className="mt-1 text-xl font-semibold text-terminal-text">{formatInr(totalValue)}</div>
+          </div>
+          <div className="rounded-md border border-terminal-border bg-terminal-bg/70 p-3">
+            <div className="font-sans text-[11px] text-terminal-muted">Return</div>
+            <div className={`mt-1 text-xl font-semibold ${performanceToneClass}`}>{formatPctValue(lifetimePct)}</div>
+          </div>
+          <div className="rounded-md border border-terminal-border bg-terminal-bg/70 p-3">
+            <div className="font-sans text-[11px] text-terminal-muted">Holdings</div>
+            <div className="mt-1 text-xl font-semibold text-terminal-text">{holdingsCount.toLocaleString("en-IN")}</div>
           </div>
         </div>
-        <div className="rounded border border-terminal-border bg-terminal-panel p-4">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <div className="text-sm font-semibold uppercase tracking-wide text-terminal-accent">Add Mutual Fund Holding</div>
-            <span className="rounded border border-terminal-border bg-terminal-bg px-2 py-0.5 text-[11px] text-terminal-muted">
-              Portfolio: Mutual Funds
-            </span>
-          </div>
+      </div>
+
+      <div className="mt-5 grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
+        <div className="flex flex-wrap items-center gap-2">
+          <TerminalButton size="sm" variant={portfolioMode === "equity" ? "accent" : "default"} onClick={() => switchPortfolioMode("equity")}>
+            Equity
+          </TerminalButton>
+          <TerminalButton size="sm" variant={portfolioMode === "mutual_funds" ? "accent" : "default"} onClick={() => switchPortfolioMode("mutual_funds")}>
+            Mutual Funds
+          </TerminalButton>
+          <TerminalButton size="sm" variant={portfolioView === "manager" ? "accent" : "default"} onClick={() => switchPortfolioView("manager")}>
+            Portfolio Manager
+          </TerminalButton>
+          <TerminalButton size="sm" variant={portfolioView === "legacy" ? "accent" : "default"} onClick={() => switchPortfolioView("legacy")}>
+            Legacy View
+          </TerminalButton>
+          <Link className="inline-flex min-h-8 items-center justify-center rounded-sm border border-terminal-border px-2 py-1 text-[10px] uppercase tracking-wide text-terminal-muted transition-colors hover:text-terminal-text" to="/equity/portfolio/lab">
+            Open Portfolio Lab
+          </Link>
+        </div>
+        <SavedViewsControl
+          pageLabel="Portfolio"
+          capture={() => ({
+            filters: { portfolioMode, portfolioView, portfolioSection, trendRange },
+            activeTabs: { portfolioView, portfolioSection },
+            selectedTicker: ticker,
+            tableColumns,
+          })}
+        />
+      </div>
+
+      {portfolioMode === "equity" && portfolioView === "legacy" ? (
+        <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+          <TerminalButton size="sm" variant={portfolioSection === "overview" ? "accent" : "ghost"} onClick={() => setPortfolioSection("overview")}>
+            Overview
+          </TerminalButton>
+          <TerminalButton size="sm" variant={portfolioSection === "attribution" ? "accent" : "ghost"} onClick={() => setPortfolioSection("attribution")}>
+            Attribution
+          </TerminalButton>
+        </div>
+      ) : null}
+    </section>
+  );
+
+  if (portfolioMode === "mutual_funds") {
+    return (
+      <div className="min-h-full bg-[radial-gradient(circle_at_top_left,rgba(255,107,0,0.08),transparent_34rem)] p-3 md:p-5">
+        <main className="mx-auto flex w-full max-w-[1680px] flex-col gap-4">
+          {renderPortfolioHero("mutual-funds-default")}
+          <TerminalPanel title="Add Mutual Fund Holding" subtitle="Portfolio: Mutual Funds">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
             <div>
               <label className="mb-1 block text-[11px] uppercase tracking-wide text-terminal-muted">Scheme Code</label>
@@ -670,108 +724,37 @@ export function PortfolioPage() {
           </div>
           {mfError && <div className="mt-2 text-xs text-terminal-neg">{mfError}</div>}
           {mfMessage && <div className="mt-2 text-xs text-terminal-pos">{mfMessage}</div>}
-        </div>
-        <MutualFundPortfolioSection refreshToken={mfRefreshToken} />
+          </TerminalPanel>
+          <MutualFundPortfolioSection refreshToken={mfRefreshToken} />
+        </main>
       </div>
     );
   }
 
   if (portfolioView === "manager") {
     return (
-      <div className="space-y-3 p-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <TerminalButton variant="default" onClick={() => switchPortfolioMode("equity")}>
-            Equity
-          </TerminalButton>
-          <TerminalButton variant="default" onClick={() => switchPortfolioMode("mutual_funds")}>
-            Mutual Funds
-          </TerminalButton>
-          <TerminalButton variant="accent" onClick={() => switchPortfolioView("manager")}>
-            Portfolio Manager
-          </TerminalButton>
-          <TerminalButton variant="default" onClick={() => switchPortfolioView("legacy")}>
-            Legacy View
-          </TerminalButton>
-          <SavedViewsControl
-            pageLabel="Portfolio"
-            capture={() => ({
-              filters: { portfolioMode, portfolioView, portfolioSection, trendRange },
-              activeTabs: { portfolioView, portfolioSection },
-              selectedTicker: ticker,
-              tableColumns: "portfolio-manager-default",
-            })}
-          />
-        </div>
-        <PortfolioManager />
+      <div className="min-h-full bg-[radial-gradient(circle_at_top_left,rgba(255,107,0,0.08),transparent_34rem)] p-3 md:p-5">
+        <main className="mx-auto flex w-full max-w-[1680px] flex-col gap-4">
+          {renderPortfolioHero("portfolio-manager-default")}
+          <TerminalPanel title="Portfolio Manager" subtitle="Manage holdings, allocations, and portfolio workflows" bodyClassName="p-0">
+            <PortfolioManager />
+          </TerminalPanel>
+        </main>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3 p-4">
-      <div className="rounded border border-terminal-border bg-terminal-panel p-3">
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <div className="text-sm font-semibold uppercase tracking-wide text-terminal-accent">Portfolio</div>
-          <span className="rounded border border-terminal-border bg-terminal-bg px-2 py-0.5 text-[11px] text-terminal-muted">
-            Mode: Equity
-          </span>
-          <SavedViewsControl
-            pageLabel="Portfolio"
-            capture={() => ({
-              filters: { portfolioMode, portfolioView, portfolioSection, trendRange },
-              activeTabs: { portfolioView, portfolioSection },
-              selectedTicker: ticker,
-              tableColumns: "portfolio-overview-default",
-            })}
-          />
-        </div>
-        <div className="flex flex-wrap gap-1">
-          <button className="rounded border border-terminal-accent px-2 py-1 text-xs text-terminal-accent">
-            Equity
-          </button>
-          <button className="rounded border border-terminal-border px-2 py-1 text-xs text-terminal-muted" onClick={() => switchPortfolioMode("mutual_funds")}>
-            Mutual Funds
-          </button>
-          <Link className="rounded border border-terminal-border px-2 py-1 text-xs text-terminal-muted hover:border-terminal-accent hover:text-terminal-accent" to="/equity/portfolio/lab">
-            Open Portfolio Lab
-          </Link>
-        </div>
-        <div className="mt-3 flex flex-wrap gap-1">
-          <button
-            className={`rounded border px-2 py-1 text-xs ${
-              portfolioSection === "overview"
-                ? "border-terminal-accent text-terminal-accent"
-                : "border-terminal-border text-terminal-muted hover:text-terminal-text"
-            }`}
-            onClick={() => setPortfolioSection("overview")}
-          >
-            Overview
-          </button>
-          <button
-            className={`rounded border px-2 py-1 text-xs ${
-              portfolioSection === "attribution"
-                ? "border-terminal-accent text-terminal-accent"
-                : "border-terminal-border text-terminal-muted hover:text-terminal-text"
-            }`}
-            onClick={() => setPortfolioSection("attribution")}
-          >
-            Attribution
-          </button>
-        </div>
-      </div>
+    <div className="min-h-full bg-[radial-gradient(circle_at_top_left,rgba(255,107,0,0.08),transparent_34rem)] p-3 md:p-5">
+      <main className="mx-auto flex w-full max-w-[1680px] flex-col gap-4">
+      {renderPortfolioHero("portfolio-overview-default")}
       {portfolioSection === "attribution" ? (
         <Suspense fallback={<div className="rounded border border-terminal-border bg-terminal-panel p-3 text-xs text-terminal-muted">Loading attribution panel...</div>}>
           <AttributionPanel portfolioId={attributionPortfolioId} />
         </Suspense>
       ) : (
         <>
-      <div className="rounded border border-terminal-border bg-terminal-panel p-4">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="text-sm font-semibold uppercase tracking-wide text-terminal-accent">Add Holding</div>
-          <span className="rounded border border-terminal-border bg-terminal-bg px-2 py-0.5 text-[11px] text-terminal-muted">
-            Market: {selectedMarket}
-          </span>
-        </div>
+      <TerminalPanel title="Add Holding" subtitle={`Market: ${selectedMarket}`}>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
           <div>
             <label className="mb-1 block text-[11px] uppercase tracking-wide text-terminal-muted">Ticker</label>
@@ -921,13 +904,13 @@ export function PortfolioPage() {
             </TerminalButton>
           ))}
         </div>
-      </div>
+      </TerminalPanel>
 
       {loading && <div className="text-xs text-terminal-muted">Loading portfolio...</div>}
       {error && <div className="rounded border border-terminal-neg bg-terminal-neg/10 p-3 text-xs text-terminal-neg">{error}</div>}
       {(
         <>
-          <div className="rounded border border-terminal-accent/40 bg-terminal-panel p-3 shadow-[0_0_0_1px_rgba(0,193,118,0.08)]">
+          <TerminalPanel title="Portfolio Summary" subtitle="Value, returns, win rate, and holding age">
             <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-6">
               <div className="rounded border border-terminal-accent/50 bg-terminal-bg px-3 py-2">
                 <div className="text-[10px] uppercase tracking-wide text-terminal-muted">Portfolio Value</div>
@@ -966,9 +949,9 @@ export function PortfolioPage() {
                 </div>
               </div>
             </div>
-          </div>
+          </TerminalPanel>
 
-          <div className="grid gap-2 rounded border border-terminal-border bg-terminal-panel p-2 text-[11px]">
+          <TerminalPanel title="Portfolio Leaders" subtitle="Best, worst, concentration, and winners split">
             <div className="grid grid-cols-1 gap-2 lg:grid-cols-4">
               <div className="rounded border border-terminal-border bg-terminal-bg px-2 py-1 text-terminal-muted">
                 Best Contributor:{" "}
@@ -994,7 +977,7 @@ export function PortfolioPage() {
                 <span className="text-terminal-neg">{losersCount} losers</span>
               </div>
             </div>
-          </div>
+          </TerminalPanel>
 
           <div className="grid gap-3 xl:grid-cols-2">
             <div className="space-y-3">
@@ -1017,8 +1000,7 @@ export function PortfolioPage() {
                 }}
               />
             </div>
-            <div className="rounded border border-terminal-border bg-terminal-panel p-3">
-              <div className="mb-2 text-sm font-semibold text-terminal-accent">Upcoming Earnings</div>
+            <TerminalPanel title="Upcoming Earnings" subtitle="Next scheduled reports">
               <div className="space-y-2">
                 {portfolioEarnings.slice(0, 5).map((row) => (
                   <div key={`${row.symbol}-${row.earnings_date}`} className="flex items-center justify-between rounded border border-terminal-border bg-terminal-bg px-2 py-1">
@@ -1028,16 +1010,18 @@ export function PortfolioPage() {
                 ))}
                 {portfolioEarnings.length === 0 ? <div className="text-xs text-terminal-muted">No upcoming earnings.</div> : null}
               </div>
-            </div>
+            </TerminalPanel>
             <EarningsCalendar symbols={portfolioSymbols} />
           </div>
 
           <PortfolioEventsCalendar symbols={portfolioSymbols} days={30} />
 
           <div className="grid gap-3 xl:grid-cols-12">
-            <div className="rounded border border-terminal-border bg-terminal-panel p-3 xl:col-span-12">
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <div className="text-sm font-semibold">Portfolio Movement & Historical Return</div>
+            <TerminalPanel
+              className="xl:col-span-12"
+              title="Portfolio Movement & Historical Return"
+              subtitle="Monthly value, invested baseline, and return percentage"
+              actions={
                 <div className="flex items-center gap-1 text-[11px]">
                   {(["1Y", "3Y", "5Y", "ALL"] as const).map((r) => (
                     <button
@@ -1053,7 +1037,8 @@ export function PortfolioPage() {
                     </button>
                   ))}
                 </div>
-              </div>
+              }
+            >
               <div
                 className="h-[26rem] w-full"
                 onTouchStart={(e) => setSwipeStartX(e.touches[0]?.clientX ?? null)}
@@ -1200,14 +1185,10 @@ export function PortfolioPage() {
               <div className="mt-2 text-[11px] text-terminal-muted">
                 Historical monthly returns are now derived from full available price history and shown as Return % (right axis).
               </div>
-            </div>
+            </TerminalPanel>
 
             <div className="space-y-3 xl:col-span-8">
-              <div className="rounded border border-terminal-border bg-terminal-panel p-3">
-              <div className="mb-2 flex items-center justify-between">
-                <div className="text-sm font-semibold">Holdings</div>
-                <ExportButton source="portfolio" data={data.items} />
-              </div>
+              <TerminalPanel title="Holdings" subtitle={`${holdingsCount} positions`} actions={<ExportButton source="portfolio" data={data.items} />}>
               <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px]">
                   <span className="rounded border border-terminal-accent/40 bg-terminal-bg px-2 py-1 text-terminal-text">
                     Total Holdings: <span className="text-terminal-text">{holdingsCount}</span>
@@ -1307,13 +1288,12 @@ export function PortfolioPage() {
                 </tbody>
                   </table>
                 </div>
-              </div>
+              </TerminalPanel>
 
             </div>
 
             <div className="space-y-3 xl:col-span-4">
-              <div className="rounded border border-terminal-border bg-terminal-panel p-3">
-                <div className="mb-2 text-sm font-semibold">Portfolio Signals</div>
+              <TerminalPanel title="Portfolio Signals" subtitle="Momentum and concentration markers">
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div className="rounded border border-terminal-border bg-terminal-bg p-2">
                     <div className="text-terminal-muted">MoM</div>
@@ -1344,12 +1324,11 @@ export function PortfolioPage() {
                     <div className="text-terminal-text">{Object.keys(sectorBuckets).length}</div>
                   </div>
                 </div>
-              </div>
+              </TerminalPanel>
 
-              <div className="rounded border border-terminal-border bg-terminal-panel p-3">
-                <div className="mb-2 text-sm font-semibold">Sector Allocation</div>
+              <TerminalPanel title="Sector Allocation" subtitle="Current value distribution">
                 <AllocationChart data={sectorData} />
-              </div>
+              </TerminalPanel>
             </div>
           </div>
         </>
@@ -1379,6 +1358,7 @@ export function PortfolioPage() {
       <BacktestResults initialTickers={(data?.items ?? []).map((row) => row.ticker)} />
         </>
       )}
+      </main>
     </div>
   );
 }
