@@ -33,6 +33,6 @@ export async function fetchNewsByTicker(ticker: string, limit = 100, market?: st
 }
 
 export async function fetchQuarterlyReports(market: string, symbol: string, limit = 8): Promise<QuarterlyReportApiItem[]> {
-  const { data } = await api.get<{ items: QuarterlyReportApiItem[] }>(`/news/reports/${market}/${symbol}`, { params: { limit } });
+  const { data } = await api.get<{ items: QuarterlyReportApiItem[] }>(`/reports/quarterly`, { params: { market, symbol, limit } });
   return Array.isArray(data?.items) ? data.items : [];
 }

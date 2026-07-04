@@ -1,13 +1,34 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { ArrowDownWideNarrow, Clock, Filter, Newspaper, Search } from "lucide-react";
 
 import { fetchLatestNews, fetchMarketSentiment, fetchNewsByTicker, fetchNewsSentiment, fetchNewsSentimentSummary, fetchStockEmotion, searchLatestNews, type NewsLatestApiItem } from "../api/client";
 import { EmotionIndicator } from "../components/terminal/EmotionIndicator";
 import { SentimentBadge } from "../components/terminal/SentimentBadge";
+import { TerminalBadge } from "../components/terminal/TerminalBadge";
+import { TerminalButton } from "../components/terminal/TerminalButton";
+import { TerminalInput } from "../components/terminal/TerminalInput";
+import { TerminalPanel } from "../components/terminal/TerminalPanel";
 import { useStock } from "../hooks/useStocks";
+import { useSettingsStore } from "../store/settingsStore";
 import { useStockStore } from "../store/stockStore";
 import { terminalColors } from "../theme/terminal";
+
+type NewsRegion = "IN" | "US";
+
+// Region-scoped query used for the default (non-ticker) feed so the headlines match the
+// market selected in the header instead of always showing a generic global feed.
+const REGION_QUERY: Record<NewsRegion, string> = {
+  IN: "India stock market Sensex Nifty NSE BSE",
+  US: "US stock market Wall Street Nasdaq S&P 500",
+};
+const REGION_LABEL: Record<NewsRegion, string> = { IN: "India", US: "United States" };
+
+function regionForMarket(market: string): NewsRegion {
+  const code = (market || "").trim().toUpperCase();
+  return code === "NSE" || code === "BSE" || code === "IN" ? "IN" : "US";
+}
+import { NewsSentimentOverview } from "./news/NewsSentimentOverview";
 
 type SentimentLabel = "Bullish" | "Bearish" | "Neutral";
 type PeriodOption = 1 | 3 | 7 | 14 | 30;
@@ -129,18 +150,32 @@ function relevanceReason(item: UiNewsItem, ticker: string, aliases: string[]): s
   return "Market fallback";
 }
 
-async function loadTickerContextNews(ticker: string, companyName: string, market?: string, limit = 200): Promise<NewsQueryResult> {
+async function loadRegionNews(region: NewsRegion, limit: number, errors: string[]): Promise<NewsQueryResult> {
+  // Prefer a region-scoped search so IN/US selection drives the default feed; fall back to the
+  // generic latest endpoint only if the region search yields nothing.
+  try {
+    const scoped = await searchLatestNews(REGION_QUERY[region], limit);
+    if (Array.isArray(scoped) && scoped.length > 0) {
+      return { items: scoped, sourceMode: "latest", searchTerm: REGION_LABEL[region], errors };
+    }
+  } catch (e) {
+    errors.push(`region(${region}): ${e instanceof Error ? e.message : "failed"}`);
+  }
+  try {
+    const latest = await fetchLatestNews(limit);
+    return { items: latest, sourceMode: "latest", searchTerm: REGION_LABEL[region], errors };
+  } catch (e) {
+    errors.push(e instanceof Error ? e.message : "latest failed");
+    return { items: [], sourceMode: "failed", errors };
+  }
+}
+
+async function loadTickerContextNews(ticker: string, companyName: string, market: string, region: NewsRegion, limit = 200): Promise<NewsQueryResult> {
   const symbol = ticker.trim().toUpperCase();
   const marketCode = String(market || "").trim().toUpperCase();
   const errors: string[] = [];
   if (!symbol) {
-    try {
-      const latest = await fetchLatestNews(limit);
-      return { items: latest, sourceMode: "latest", errors };
-    } catch (e) {
-      errors.push(e instanceof Error ? e.message : "latest failed");
-      return { items: [], sourceMode: "failed", errors };
-    }
+    return loadRegionNews(region, limit, errors);
   }
 
   try {
@@ -173,18 +208,14 @@ async function loadTickerContextNews(ticker: string, companyName: string, market
     }
   }
 
-  try {
-    const latest = await fetchLatestNews(limit);
-    return { items: latest, sourceMode: "latest", errors };
-  } catch (e) {
-    errors.push(`latest: ${e instanceof Error ? e.message : "failed"}`);
-    return { items: [], sourceMode: "failed", errors };
-  }
+  return loadRegionNews(region, limit, errors);
 }
 
 export function NewsPage() {
   const currentTicker = useStockStore((s) => s.ticker);
   const { data: selectedStock } = useStock(currentTicker);
+  const selectedMarket = useSettingsStore((s) => s.selectedMarket);
+  const region = regionForMarket(String(selectedStock?.exchange || selectedMarket || ""));
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [periodDays, setPeriodDays] = useState<PeriodOption>(7);
@@ -219,18 +250,23 @@ export function NewsPage() {
   }, [currentTicker, isTickerMode]);
 
   const newsQuery = useQuery<NewsQueryResult>({
-    queryKey: ["news-page", currentTicker, selectedStock?.company_name || "", debouncedSearch, isTickerMode],
+    queryKey: ["news-page", currentTicker, selectedStock?.company_name || "", debouncedSearch, isTickerMode, region],
     queryFn: async () => {
       if (isTickerMode) {
         return loadTickerContextNews(
           currentTicker,
           String(selectedStock?.company_name || ""),
-          String(selectedStock?.exchange || ""),
+          String(selectedStock?.exchange || selectedMarket || ""),
+          region,
           200,
         );
       }
-      const items = debouncedSearch ? await searchLatestNews(debouncedSearch, 200) : await fetchLatestNews(200);
-      return { items, sourceMode: debouncedSearch ? "search" : "latest", searchTerm: debouncedSearch || undefined, errors: [] };
+      if (debouncedSearch) {
+        const items = await searchLatestNews(debouncedSearch, 200);
+        return { items, sourceMode: "search", searchTerm: debouncedSearch, errors: [] };
+      }
+      // No ticker, no search: default to the region's market news from the header selection.
+      return loadRegionNews(region, 200, []);
     },
     retry: 2,
     staleTime: 60_000,
@@ -397,211 +433,203 @@ export function NewsPage() {
   const visibleItems = sortedItems.slice(0, visibleCount);
 
   return (
-    <div className="space-y-3 p-4">
-      <div className="rounded border border-terminal-border bg-terminal-panel p-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <div className="text-sm font-semibold">News & Sentiment</div>
-            <div className="text-[11px] text-terminal-muted">
-              {isTickerMode ? `Ticker context: ${tickerDisplay || currentTicker}` : "Global/search context"}
-            </div>
-            <div className="text-[10px] text-terminal-muted">
-              Source: {newsQuery.data?.sourceMode || "-"} {newsQuery.data?.searchTerm ? `(${newsQuery.data.searchTerm})` : ""} | Refreshed: {new Date(lastRefreshMs).toLocaleTimeString()}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <select
-              className="rounded border border-terminal-border bg-terminal-bg px-2 py-1 text-xs"
-              value={sortMode}
-              onChange={(e) => setSortMode(e.target.value as "time" | "sentiment")}
-            >
-              <option value="time">Sort: Time</option>
-              <option value="sentiment">Sort: Sentiment</option>
-            </select>
-            <select
-              className="rounded border border-terminal-border bg-terminal-bg px-2 py-1 text-xs"
-              value={String(periodDays)}
-              onChange={(e) => setPeriodDays(Number(e.target.value) as PeriodOption)}
-            >
-              {PERIOD_OPTIONS.map((d) => (
-                <option key={d} value={d}>
-                  {d}d
-                </option>
-              ))}
-            </select>
-            <button className="rounded border border-terminal-border px-2 py-1 text-xs" onClick={() => setIsTickerMode(true)}>
-              Use ticker
-            </button>
-          </div>
-        </div>
-        <div className="mt-2">
-          <input
-            className="w-full rounded border border-terminal-border bg-terminal-bg px-2 py-1 text-xs outline-none focus:border-terminal-accent"
-            placeholder="Search news..."
-            value={searchInput}
-            onChange={(e) => {
-              setIsTickerMode(false);
-              setSearchInput(e.target.value);
-            }}
-          />
-        </div>
-      </div>
-
-      <section className="rounded border border-terminal-border bg-terminal-panel p-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="rounded px-2 py-0.5 text-[11px] font-semibold text-black" style={{ backgroundColor: sentimentColor(summary.overall_label as SentimentLabel) }}>
-              {summary.overall_label}
-            </span>
-            <span className="text-sm font-semibold">
-              {summary.average_score >= 0 ? "+" : ""}
-              {Number(summary.average_score).toFixed(2)}
-            </span>
-          </div>
-          <div className="text-[11px] text-terminal-muted">
-            {summary.total_articles} articles | {periodDays}d
-          </div>
-        </div>
-
-        <div className="mt-2 h-2 w-full overflow-hidden rounded bg-terminal-bg">
-            <div className="flex h-full w-full">
-            <div style={{ width: `${summary.bullish_pct}%`, background: terminalColors.positive }} />
-            <div style={{ width: `${summary.neutral_pct}%`, background: terminalColors.muted }} />
-            <div style={{ width: `${summary.bearish_pct}%`, background: terminalColors.negative }} />
-          </div>
-        </div>
-        <div className="mt-1 flex items-center justify-between text-[11px] text-terminal-muted">
-          <span>Bullish {summary.bullish_pct}%</span>
-          <span>Neutral {summary.neutral_pct}%</span>
-          <span>Bearish {summary.bearish_pct}%</span>
-        </div>
-
-        <div className="mt-3 h-28 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={summary.daily_sentiment}>
-              <XAxis dataKey="date" hide />
-              <YAxis domain={[-1, 1]} hide />
-              <Tooltip contentStyle={{ borderRadius: "4px", border: `1px solid ${terminalColors.border}`, background: terminalColors.panel, color: terminalColors.text }} labelStyle={{ color: terminalColors.muted }} />
-              <Line type="monotone" dataKey="avg_score" stroke={terminalColors.accent} strokeWidth={2} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-        {marketSentimentQuery.data?.sectors?.length ? (
-          <div className="mt-3 grid grid-cols-2 gap-1 text-[11px] md:grid-cols-4">
-            {marketSentimentQuery.data.sectors.slice(0, 8).map((row) => (
-              <div
-                key={row.sector}
-                className="rounded border border-terminal-border px-1.5 py-1"
-                style={{
-                  background:
-                    row.avg_sentiment > 0
-                      ? `rgba(34,197,94,${Math.min(0.55, Math.abs(row.avg_sentiment) + 0.1)})`
-                      : row.avg_sentiment < 0
-                      ? `rgba(244,63,94,${Math.min(0.55, Math.abs(row.avg_sentiment) + 0.1)})`
-                      : "#0D1117",
-                }}
-              >
-                <div className="truncate text-terminal-muted">{row.sector}</div>
-                <div className="font-semibold">{row.avg_sentiment >= 0 ? "+" : ""}{row.avg_sentiment.toFixed(2)}</div>
+    <div className="min-h-full bg-[radial-gradient(circle_at_top_left,rgba(255,107,0,0.08),transparent_34rem)] p-3 md:p-5">
+      <main className="mx-auto flex w-full max-w-[1280px] flex-col gap-4">
+        <section className="rounded-md border border-terminal-border/70 bg-terminal-panel/95 p-4 shadow-[0_10px_30px_rgba(0,0,0,0.18)] md:p-5">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div className="min-w-0">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <TerminalBadge variant="accent">News & Sentiment</TerminalBadge>
+                <TerminalBadge variant="info">{region === "IN" ? "🇮🇳 India" : "🇺🇸 United States"}</TerminalBadge>
+                <TerminalBadge variant="neutral">
+                  {isTickerMode && (tickerDisplay || currentTicker) ? tickerDisplay || currentTicker : `${REGION_LABEL[region]} market feed`}
+                </TerminalBadge>
               </div>
-            ))}
-          </div>
-        ) : null}
-        <div className="mt-3 rounded border border-terminal-border bg-terminal-bg p-2">
-          <div className="mb-1 text-[11px] text-terminal-muted">Keyword Alerts (comma separated)</div>
-          <input
-            value={keywordInput}
-            onChange={(e) => setKeywordInput(e.target.value)}
-            placeholder="FDA approval, CEO resign, acquisition"
-            className="w-full rounded border border-terminal-border bg-terminal-panel px-2 py-1 text-xs outline-none focus:border-terminal-accent"
-          />
-          {keywordHits.length ? (
-            <div className="mt-2 space-y-1">
-              {keywordHits.map((hit, idx) => (
-                <div key={`${hit.keyword}-${idx}`} className="rounded border border-terminal-border bg-terminal-panel px-2 py-1 text-[11px]">
-                  <span className="text-terminal-accent">{hit.keyword}</span> | {hit.title}
-                </div>
-              ))}
+              <h1 className="max-w-4xl font-sans text-2xl font-semibold tracking-normal text-terminal-text md:text-3xl">
+                Track the story moving your stocks.
+              </h1>
+              <p className="mt-2 max-w-3xl font-sans text-sm leading-6 text-terminal-muted">
+                {isTickerMode && (tickerDisplay || currentTicker)
+                  ? `Sentiment-scored headlines for ${tickerDisplay || currentTicker}, refreshed live.`
+                  : `Sentiment-scored ${REGION_LABEL[region]} market headlines, refreshed live. Switch the market in the header to change the region.`}
+              </p>
+              <div className="mt-2 text-[10px] text-terminal-muted">
+                Source: {newsQuery.data?.sourceMode || "-"} {newsQuery.data?.searchTerm ? `(${newsQuery.data.searchTerm})` : ""} | Refreshed: {new Date(lastRefreshMs).toLocaleTimeString()}
+              </div>
             </div>
-          ) : null}
-        </div>
-        {sentimentSummaryQuery.data?.top_sources?.length ? (
-          <div className="mt-3 rounded border border-terminal-border bg-terminal-bg p-2">
-            <div className="mb-1 text-[11px] text-terminal-muted">Top News Sources ({periodDays}d)</div>
-            <div className="grid grid-cols-1 gap-1 md:grid-cols-2">
-              {sentimentSummaryQuery.data.top_sources.slice(0, 6).map((row) => (
-                <div key={row.source} className="flex items-center justify-between rounded border border-terminal-border px-2 py-1 text-[11px]">
-                  <span className="truncate">{row.source}</span>
-                  <span className="text-terminal-muted">{row.count}</span>
-                </div>
-              ))}
+
+            <div className="grid grid-cols-3 gap-2 text-xs md:min-w-[420px]">
+              <div className="rounded-md border border-terminal-border bg-terminal-bg/70 p-3">
+                <div className="font-sans text-[11px] text-terminal-muted">Articles</div>
+                <div className="mt-1 text-xl font-semibold text-terminal-text">{summary.total_articles}</div>
+              </div>
+              <div className="rounded-md border border-terminal-border bg-terminal-bg/70 p-3">
+                <div className="font-sans text-[11px] text-terminal-muted">Overall</div>
+                <div className="mt-1 truncate text-xl font-semibold text-terminal-text">{summary.overall_label}</div>
+              </div>
+              <div className="rounded-md border border-terminal-border bg-terminal-bg/70 p-3">
+                <div className="font-sans text-[11px] text-terminal-muted">Bullish</div>
+                <div className="mt-1 text-xl font-semibold text-terminal-text">{summary.bullish_pct}%</div>
+              </div>
             </div>
           </div>
-        ) : null}
-      </section>
 
-      {isTickerMode && currentTicker && (
-        <EmotionIndicator
-          ticker={currentTicker}
-          data={emotionQuery.data}
-          isLoading={emotionQuery.isLoading}
-          isError={emotionQuery.isError}
-        />
-      )}
+          <div className="mt-5 grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_160px_180px]">
+              <label className="block">
+                <span className="mb-1 block font-sans text-xs text-terminal-muted">Search news</span>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-terminal-muted" aria-hidden="true" />
+                  <TerminalInput
+                    value={searchInput}
+                    onChange={(e) => {
+                      setIsTickerMode(false);
+                      setSearchInput(e.target.value);
+                    }}
+                    className="pl-9"
+                    tone="ui"
+                    placeholder="Search news..."
+                  />
+                </div>
+              </label>
+              <label className="block">
+                <span className="mb-1 flex items-center gap-1 font-sans text-xs text-terminal-muted">
+                  <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                  Period
+                </span>
+                <TerminalInput
+                  as="select"
+                  value={String(periodDays)}
+                  onChange={(e) => setPeriodDays(Number(e.target.value) as PeriodOption)}
+                  tone="ui"
+                >
+                  {PERIOD_OPTIONS.map((d) => (
+                    <option key={d} value={d}>
+                      {d}d
+                    </option>
+                  ))}
+                </TerminalInput>
+              </label>
+              <label className="block">
+                <span className="mb-1 flex items-center gap-1 font-sans text-xs text-terminal-muted">
+                  <ArrowDownWideNarrow className="h-3.5 w-3.5" aria-hidden="true" />
+                  Sort
+                </span>
+                <TerminalInput
+                  as="select"
+                  value={sortMode}
+                  onChange={(e) => setSortMode(e.target.value as "time" | "sentiment")}
+                  tone="ui"
+                >
+                  <option value="time">Time</option>
+                  <option value="sentiment">Sentiment</option>
+                </TerminalInput>
+              </label>
+            </div>
 
-      {(newsQuery.isLoading || (isTickerMode && sentimentQuery.isLoading)) && (
-        <div className="space-y-2">
-          {Array.from({ length: 3 }).map((_, idx) => (
-            <div key={idx} className="h-20 animate-pulse rounded border border-terminal-border bg-terminal-panel" />
-          ))}
-        </div>
-      )}
-      {newsQuery.isError && (
-        <div className="rounded border border-terminal-neg bg-terminal-neg/10 p-2 text-xs text-terminal-neg">Failed to load latest news feed</div>
-      )}
-      {isTickerMode && sentimentQuery.isError && (
-        <div className="rounded border border-terminal-warn bg-terminal-warn/10 p-2 text-xs text-terminal-warn">
-          Sentiment service unavailable. Showing headline feed with fallback sentiment summary.
-        </div>
-      )}
+            <div className="flex flex-wrap items-center gap-2">
+              <TerminalButton variant="accent" size="lg" leftIcon={<Newspaper className="h-4 w-4" />} onClick={() => setIsTickerMode(true)}>
+                Use ticker
+              </TerminalButton>
+            </div>
+          </div>
+        </section>
 
-      <div className="space-y-2">
-        {visibleItems.map((item) => (
-          <article key={item.id} className="rounded border border-terminal-border bg-terminal-panel p-3">
-            <div className="flex items-center justify-between gap-2">
-              <SentimentBadge label={item.sentiment.label} score={item.sentiment.score} confidence={item.sentiment.confidence} />
-              <div className="flex items-center gap-2">
-                {isTickerMode && (
-                  <span className="rounded border border-terminal-border px-1.5 py-0.5 text-[10px] text-terminal-muted">
-                    {relevanceReason(item, currentTicker, relevanceAliases)}
-                  </span>
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="min-w-0 space-y-4">
+            <TerminalPanel
+              title="Headlines"
+              subtitle={`${periodItems.length} articles in the last ${periodDays}d`}
+              actions={
+                <TerminalBadge variant="info" dot>
+                  {sortMode === "time" ? "Time" : "Sentiment"}
+                </TerminalBadge>
+              }
+            >
+              {(newsQuery.isLoading || (isTickerMode && sentimentQuery.isLoading)) && (
+                <div className="space-y-2">
+                  {Array.from({ length: 3 }).map((_, idx) => (
+                    <div key={idx} className="h-20 animate-pulse rounded border border-terminal-border bg-terminal-bg/60" />
+                  ))}
+                </div>
+              )}
+              {newsQuery.isError && (
+                <div className="rounded border border-terminal-neg bg-terminal-neg/10 p-2 text-xs text-terminal-neg">Failed to load latest news feed</div>
+              )}
+              {isTickerMode && sentimentQuery.isError && (
+                <div className="rounded border border-terminal-warn bg-terminal-warn/10 p-2 text-xs text-terminal-warn">
+                  Sentiment service unavailable. Showing headline feed with fallback sentiment summary.
+                </div>
+              )}
+
+              <div className="space-y-2">
+                {visibleItems.map((item) => (
+                  <article key={item.id} className="rounded border border-terminal-border bg-terminal-bg/60 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <SentimentBadge label={item.sentiment.label} score={item.sentiment.score} confidence={item.sentiment.confidence} />
+                      <div className="flex flex-wrap items-center gap-2">
+                        {isTickerMode && (
+                          <span className="rounded border border-terminal-border bg-terminal-panel/70 px-1.5 py-0.5 text-[10px] text-terminal-muted">
+                            {relevanceReason(item, currentTicker, relevanceAliases)}
+                          </span>
+                        )}
+                        <div className="text-[11px] text-terminal-muted">{relativeTime(item.publishedAt, nowMs)}</div>
+                      </div>
+                    </div>
+                    <a href={item.url} target="_blank" rel="noopener noreferrer" className="mt-2 block font-sans text-sm font-semibold text-terminal-accent hover:underline">
+                      {item.title}
+                    </a>
+                    <div className="mt-1 text-[11px] text-terminal-muted">
+                      {item.source} | {formatPublishedTime(item.publishedAt)}
+                    </div>
+                    <p className="mt-2 text-xs leading-5 text-terminal-text">{item.summary || "-"}</p>
+                  </article>
+                ))}
+                {!newsQuery.isLoading && visibleItems.length === 0 && (
+                  <div className="rounded border border-terminal-border bg-terminal-bg/60 p-3 text-xs text-terminal-muted">
+                    {isTickerMode ? `No relevant latest news found for ${currentTicker}.` : "No news found for this search"}
+                  </div>
                 )}
-                <div className="text-[11px] text-terminal-muted">{relativeTime(item.publishedAt, nowMs)}</div>
               </div>
-            </div>
-            <a href={item.url} target="_blank" rel="noopener noreferrer" className="mt-1 block text-sm font-semibold text-terminal-accent hover:underline">
-              {item.title}
-            </a>
-            <div className="mt-1 text-[11px] text-terminal-muted">
-              {item.source} | {formatPublishedTime(item.publishedAt)}
-            </div>
-            <p className="mt-2 text-xs text-terminal-text">{item.summary || "-"}</p>
-          </article>
-        ))}
-        {!newsQuery.isLoading && visibleItems.length === 0 && (
-          <div className="rounded border border-terminal-border bg-terminal-panel p-3 text-xs text-terminal-muted">
-            {isTickerMode ? `No relevant latest news found for ${currentTicker}.` : "No news found for this search"}
-          </div>
-        )}
-      </div>
 
-      {visibleCount < periodItems.length && (
-        <div className="pt-1">
-          <button className="rounded border border-terminal-border px-3 py-1 text-xs" onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}>
-            Load more
-          </button>
-        </div>
-      )}
+              {visibleCount < periodItems.length && (
+                <div className="pt-3">
+                  <TerminalButton variant="default" size="sm" onClick={() => setVisibleCount((n) => n + PAGE_SIZE)} leftIcon={<Filter className="h-3.5 w-3.5" />}>
+                    Load more
+                  </TerminalButton>
+                </div>
+              )}
+            </TerminalPanel>
+
+            {isTickerMode && currentTicker && (
+              <EmotionIndicator
+                ticker={currentTicker}
+                data={emotionQuery.data}
+                isLoading={emotionQuery.isLoading}
+                isError={emotionQuery.isError}
+              />
+            )}
+          </div>
+
+          <aside className="space-y-4">
+            <NewsSentimentOverview
+              overallLabel={summary.overall_label as "Bullish" | "Bearish" | "Neutral"}
+              averageScore={Number(summary.average_score)}
+              bullishPct={Number(summary.bullish_pct)}
+              neutralPct={Number(summary.neutral_pct)}
+              bearishPct={Number(summary.bearish_pct)}
+              totalArticles={Number(summary.total_articles)}
+              periodDays={periodDays}
+              dailySentiment={summary.daily_sentiment ?? []}
+              sectors={(marketSentimentQuery.data?.sectors ?? []).map((r) => ({ sector: String(r.sector), avg_sentiment: Number(r.avg_sentiment) }))}
+              topSources={(sentimentSummaryQuery.data?.top_sources ?? []).map((r) => ({ source: String(r.source), count: Number(r.count) }))}
+              keywordInput={keywordInput}
+              onKeywordChange={setKeywordInput}
+              keywordHits={keywordHits}
+            />
+          </aside>
+        </section>
+      </main>
     </div>
   );
 }
