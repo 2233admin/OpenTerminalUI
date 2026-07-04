@@ -545,6 +545,7 @@ export type CommandSuggestion =
       title: string;
       subtitle: string;
       command: string;
+      market?: string;
       price?: number | null;
     }
   | {

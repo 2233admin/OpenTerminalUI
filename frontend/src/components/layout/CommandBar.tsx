@@ -82,6 +82,12 @@ function looksLikeTickerToken(token?: string) {
   return Boolean(token) && /^[A-Z0-9.\-]{1,20}$/i.test(String(token).trim());
 }
 
+function mapSymbolSearchMarket(exchange?: string, countryCode?: string) {
+  const normalizedExchange = String(exchange ?? "").trim().toUpperCase();
+  const normalizedCountry = String(countryCode ?? "").trim().toUpperCase();
+  return normalizedExchange === "NSE" || normalizedExchange === "BSE" || normalizedCountry === "IN" ? "NSE" : "NASDAQ";
+}
+
 function formatPreviewPrice(value: number | null) {
   if (value == null || !Number.isFinite(value)) return "--";
   return value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -236,25 +242,25 @@ export function CommandBar({ onExecute }: Props) {
     setSearchingTickers(true);
     const timer = setTimeout(() => {
       void (async () => {
-        try {
-          const [equities, crypto] = await Promise.all([
-            searchSymbols(query, selectedMarket),
-            fetchCryptoSearch(query),
-          ]);
-          if (reqId !== searchReqRef.current) return;
-          const merged = dedupeTickers([...(equities || []), ...(crypto || [])]).slice(0, 20);
-          setRemoteTickers(merged);
-          if (merged.length) {
-            setInstrumentCache((prev) => {
-              const next = dedupeTickers([...merged, ...prev]);
-              return next.slice(0, 200);
-            });
-          }
-        } catch {
-          if (reqId === searchReqRef.current) setRemoteTickers([]);
-        } finally {
-          if (reqId === searchReqRef.current) setSearchingTickers(false);
+        // The backend /search already returns cross-market matches (an NSE stock surfaces even when
+        // market=NASDAQ), so a single market query suffices. A second per-market request was hanging
+        // in the browser and blocking the whole await. allSettled keeps a crypto failure from wiping
+        // the equity results.
+        const settled = await Promise.allSettled([
+          searchSymbols(query, selectedMarket),
+          fetchCryptoSearch(query),
+        ]);
+        if (reqId !== searchReqRef.current) return;
+        const collected = settled.flatMap((r) => (r.status === "fulfilled" && Array.isArray(r.value) ? r.value : []));
+        const merged = dedupeTickers(collected).slice(0, 20);
+        setRemoteTickers(merged);
+        if (merged.length) {
+          setInstrumentCache((prev) => {
+            const next = dedupeTickers([...merged, ...prev]);
+            return next.slice(0, 200);
+          });
         }
+        if (reqId === searchReqRef.current) setSearchingTickers(false);
       })();
     }, 180);
 
@@ -411,6 +417,7 @@ export function CommandBar({ onExecute }: Props) {
             .filter(Boolean)
             .join(" - "),
           command: security.symbol,
+          market: security.market === "IN" ? "NSE" : "NASDAQ",
           price: security.lastPrice ?? null,
           score: 600 - idx,
         });
@@ -540,8 +547,9 @@ export function CommandBar({ onExecute }: Props) {
           title: symbol,
           subtitle: [item.name, item.exchange].filter(Boolean).join(" - "),
           command: symbol,
+          market: mapSymbolSearchMarket(item.exchange, item.country_code),
           price: null,
-          score: 500 - (result.score ?? 1) * 250,
+          score: 1100 - (result.score ?? 1) * 250,
         });
       });
     } else {
@@ -554,6 +562,7 @@ export function CommandBar({ onExecute }: Props) {
           title: symbol,
           subtitle: [item.name, item.exchange].filter(Boolean).join(" - "),
           command: symbol,
+          market: mapSymbolSearchMarket(item.exchange, item.country_code),
           price: null,
           score: 100 - idx,
         });
@@ -669,6 +678,13 @@ export function CommandBar({ onExecute }: Props) {
 
   const getActiveSuggestion = () => suggestions[selectedIndexRef.current];
 
+  const submitSuggestion = (suggestion: CommandSuggestion) => {
+    if (suggestion.kind === "ticker" && suggestion.market) {
+      useSettingsStore.getState().setSelectedMarket(suggestion.market === "NSE" ? "NSE" : "NASDAQ");
+    }
+    void submitCommand(suggestion.command);
+  };
+
   return (
     <div
       ref={rootRef}
@@ -753,7 +769,7 @@ export function CommandBar({ onExecute }: Props) {
               e.preventDefault();
               const currentSuggestion = getActiveSuggestion();
               if (isOpen && currentSuggestion) {
-                void submitCommand(currentSuggestion.command);
+                submitSuggestion(currentSuggestion);
               } else {
                 void submitCommand();
               }
@@ -969,7 +985,7 @@ export function CommandBar({ onExecute }: Props) {
                 aria-selected={idx === selectedIndex}
                 type="button"
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={() => void submitCommand(item.command)}
+                onClick={() => submitSuggestion(item)}
                 className={`grid w-full grid-cols-[auto_1fr_auto] items-center gap-2 px-2 py-1.5 text-left ${
                   idx === selectedIndex ? "bg-[#1A2332]" : "hover:bg-terminal-panel"
                 }`}
