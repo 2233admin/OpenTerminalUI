@@ -12,12 +12,14 @@ export function AgentConsole() {
   const running = useAgentStore((s) => s.running);
   const debate = useAgentStore((s) => s.debate);
   const strategy = useAgentStore((s) => s.strategy);
+  const screener = useAgentStore((s) => s.screener);
   const messages = useAgentStore((s) => s.messages);
   const artifacts = useAgentStore((s) => s.artifacts);
   const toggleOpen = useAgentStore((s) => s.toggleOpen);
   const setOpen = useAgentStore((s) => s.setOpen);
   const toggleDebate = useAgentStore((s) => s.toggleDebate);
   const toggleStrategy = useAgentStore((s) => s.toggleStrategy);
+  const toggleScreener = useAgentStore((s) => s.toggleScreener);
   const startRun = useAgentStore((s) => s.startRun);
   // Subscribe to the active ticker so the context chip re-renders on symbol change.
   useStockStore((s) => s.ticker);
@@ -90,6 +92,20 @@ export function AgentConsole() {
             }`}
           >
             Strategy Lab
+          </button>
+          <button
+            type="button"
+            onClick={toggleScreener}
+            aria-pressed={screener}
+            aria-label="Toggle screener mode"
+            title="Screen membership: which built-in screens this stock qualifies under"
+            className={`rounded border px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide transition-colors ${
+              screener
+                ? "border-terminal-accent bg-terminal-accent text-terminal-bg"
+                : "border-terminal-border text-terminal-muted hover:border-terminal-accent hover:text-terminal-accent"
+            }`}
+          >
+            Screener
           </button>
           {contextSymbol ? (
             <span

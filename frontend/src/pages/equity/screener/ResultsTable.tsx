@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Filter, GitCompareArrows, LineChart, Newspaper, Plus, Search, TestTube2, TrendingDown, TrendingUp } from "lucide-react";
+import { Bell, Filter, GitCompareArrows, LineChart, ListChecks, Newspaper, Plus, Search, TestTube2, TrendingDown, TrendingUp } from "lucide-react";
 
 import { addWatchlistItem } from "../../../api/client";
+import { useAgentStore } from "../../../agent/agentStore";
 import { ExportButton } from "../../../components/common/ExportButton";
 import { DataGrid } from "../../../components/common/DataGrid";
 import { TerminalPanel } from "../../../components/terminal/TerminalPanel";
@@ -438,6 +439,14 @@ export function ResultsTable({ framed = true }: ResultsTableProps) {
               onClick={(event) => {
                 event.stopPropagation();
                 openBacktest(row);
+              }}
+            />
+            <ActionButton
+              label="Screens"
+              icon={ListChecks}
+              onClick={(event) => {
+                event.stopPropagation();
+                void useAgentStore.getState().runScreenerFor(getTicker(row));
               }}
             />
             <ActionButton

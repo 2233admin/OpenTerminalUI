@@ -9,6 +9,7 @@ from fastapi.responses import StreamingResponse
 
 from backend.agent.orchestrator import Orchestrator
 from backend.agent.debate import DebateOrchestrator
+from backend.agent.screener import ScreenerAgentOrchestrator
 from backend.agent.strategy_loop import StrategyLoopOrchestrator
 from backend.agent.tools.market_tools import build_default_registry, build_strategy_registry
 from backend.auth.deps import get_current_user
@@ -71,6 +72,12 @@ async def stream_run(run_id: str, user=Depends(get_current_user)) -> StreamingRe
             registry=build_strategy_registry(),
             max_rounds=settings.agent_strategy_loop_max_rounds,
         )
+        run_args = (subject,)
+    elif spec["mode"] == "screener":
+        if not settings.agent_screener_enabled:
+            raise HTTPException(status_code=403, detail="screener mode disabled")
+        subject = (spec.get("ticker") or spec["prompt"]).strip()
+        orchestrator = ScreenerAgentOrchestrator(provider=provider)
         run_args = (subject,)
     else:
         orchestrator = Orchestrator(

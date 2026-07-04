@@ -21,7 +21,7 @@ export interface RunRequest {
   context?: RunContext;
   provider?: string;
   model?: string;
-  mode?: "standard" | "deep" | "debate" | "strategy";
+  mode?: "standard" | "deep" | "debate" | "strategy" | "screener";
   ticker?: string;
 }
 

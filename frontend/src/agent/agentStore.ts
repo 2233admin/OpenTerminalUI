@@ -12,12 +12,15 @@ interface AgentState {
   running: boolean;
   debate: boolean;
   strategy: boolean;
+  screener: boolean;
   messages: AgentMessage[];
   artifacts: AgentArtifact[];
   toggleOpen: () => void;
   setOpen: (open: boolean) => void;
   toggleDebate: () => void;
   toggleStrategy: () => void;
+  toggleScreener: () => void;
+  runScreenerFor: (ticker: string) => Promise<void>;
   appendUserAndPending: (prompt: string) => void;
   applyEvent: (event: AgentEvent) => void;
   startRun: (prompt: string) => Promise<void>;
@@ -28,13 +31,15 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   running: false,
   debate: false,
   strategy: false,
+  screener: false,
   messages: [],
   artifacts: [],
 
   toggleOpen: () => set((s) => ({ open: !s.open })),
   setOpen: (open) => set({ open }),
-  toggleDebate: () => set((s) => ({ debate: !s.debate, strategy: false })),
-  toggleStrategy: () => set((s) => ({ strategy: !s.strategy, debate: false })),
+  toggleDebate: () => set((s) => ({ debate: !s.debate, strategy: false, screener: false })),
+  toggleStrategy: () => set((s) => ({ strategy: !s.strategy, debate: false, screener: false })),
+  toggleScreener: () => set((s) => ({ screener: !s.screener, debate: false, strategy: false })),
 
   appendUserAndPending: (prompt) =>
     set((s) => ({
@@ -118,10 +123,14 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     try {
       const debate = get().debate;
       const strategy = get().strategy;
+      const screener = get().screener;
       const runId = await createRun({
         prompt: text,
         context: buildScreenContext(),
-        ...(debate ? { mode: "debate" as const, ticker: text } : strategy ? { mode: "strategy" as const, ticker: text } : {}),
+        ...(debate ? { mode: "debate" as const, ticker: text }
+          : strategy ? { mode: "strategy" as const, ticker: text }
+            : screener ? { mode: "screener" as const, ticker: text }
+              : {}),
       });
       await streamRun(runId, (event) => get().applyEvent(event));
     } catch (err) {
@@ -129,5 +138,12 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     } finally {
       if (get().running) set({ running: false });
     }
+  },
+
+  runScreenerFor: async (ticker) => {
+    const t = (ticker || "").trim().toUpperCase();
+    if (!t) return;
+    set({ screener: true, debate: false, strategy: false, open: true });
+    await get().startRun(t);
   },
 }));
