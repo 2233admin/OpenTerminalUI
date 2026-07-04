@@ -6,6 +6,7 @@ from typing import Any, AsyncGenerator
 from backend.agent import events
 from backend.agent.debate import roles
 from backend.agent.orchestrator import Orchestrator
+from backend.agent.streaming import complete_with_status
 from backend.config.settings import get_settings
 from backend.services.llm.base import LLMMessage
 from backend.services.llm.model_router import TaskProfile, select_chain
@@ -57,26 +58,35 @@ class DebateOrchestrator:
             for role, _ in roles.ANALYSTS
         )
 
-    async def _complete(self, system: str, user: str, role: str) -> tuple[str, str]:
-        """One LLM turn that tolerates empty completions.
+    async def _complete(self, system: str, user: str, role: str):
+        """One LLM turn that tolerates empty completions, streaming progress.
 
         Some models intermittently return empty content on long prompts; retry
-        once with a shorter prompt before giving up. Returns '' if still empty.
+        once with a shorter prompt before giving up. Yields ``status`` events as
+        the model layer works, then a single ``result`` event carrying
+        ``(content, model)`` (content is '' if still empty).
         """
         models = select_chain(TaskProfile(phase="synthesis", role=role), get_settings())
         for user_text in (user, user[:4000]):
-            response = await self.provider.complete(
+            response = None
+            async for ev in complete_with_status(
+                self.provider,
                 [LLMMessage(role="system", content=system), LLMMessage(role="user", content=user_text)],
                 tools=None,
                 # Headroom for reasoning models (e.g. gpt-oss): a tight token cap
                 # gets consumed by reasoning and yields empty content on long prompts.
                 max_tokens=1536,
                 models=models,
-            )
+            ):
+                if ev["type"] == "result":
+                    response = ev["message"]
+                else:
+                    yield ev
             content = (response.content or "").strip()
             if content:
-                return content, response.model or models[0]
-        return "", models[0]
+                yield {"type": "result", "content": content, "model": response.model or models[0]}
+                return
+        yield {"type": "result", "content": "", "model": models[0]}
 
     async def run(
         self, subject: str, *, screen_context: dict[str, Any] | None = None,
@@ -84,10 +94,12 @@ class DebateOrchestrator:
         """Yield a complete debate stream, containing one and only one final event."""
         try:
             yield events.phase("analysts", "Analyst team")
-            results = await asyncio.gather(*[
-                self._collect_analyst(role, prompt, subject, screen_context)
-                for role, prompt in roles.ANALYSTS
-            ])
+            results = []
+            for role, prompt in roles.ANALYSTS:
+                res = await self._collect_analyst(role, prompt, subject, screen_context)
+                results.append(res)
+                # Larger delay to prevent bursting the API rate limits (Gemini free tier allows ~15-20 RPM)
+                await asyncio.sleep(5.0)
             notes: dict[str, str] = {}
             for (role, _), (passthrough, note) in zip(roles.ANALYSTS, results):
                 for event in passthrough:
@@ -97,8 +109,13 @@ class DebateOrchestrator:
 
             yield events.phase("debate", "Bull vs Bear")
             analyst_context = self._analyst_context(notes)
+            bull = bull_model = ""
             try:
-                bull, bull_model = await self._complete(roles.BULL_RESEARCHER, analyst_context, "bull")
+                async for ev in self._complete(roles.BULL_RESEARCHER, analyst_context, "bull"):
+                    if ev["type"] == "result":
+                        bull, bull_model = ev["content"], ev["model"]
+                    else:
+                        yield ev
             except Exception as exc:
                 yield events.error(str(exc))
                 bull = ""
@@ -107,8 +124,14 @@ class DebateOrchestrator:
             if bull_model:
                 yield events.model(bull_model, "synthesis")
             yield events.role_message("bull", bull)
+            await asyncio.sleep(10.0)  # Rate limit backoff for free tiers
+            bear = bear_model = ""
             try:
-                bear, bear_model = await self._complete(roles.BEAR_RESEARCHER, analyst_context, "bear")
+                async for ev in self._complete(roles.BEAR_RESEARCHER, analyst_context, "bear"):
+                    if ev["type"] == "result":
+                        bear, bear_model = ev["content"], ev["model"]
+                    else:
+                        yield ev
             except Exception as exc:
                 yield events.error(str(exc))
                 bear = ""
@@ -120,10 +143,16 @@ class DebateOrchestrator:
 
             yield events.phase("decision", "Portfolio manager")
             decision_context = f"{analyst_context}\n\nBULL CASE:\n{bull}\n\nBEAR CASE:\n{bear}"
+            await asyncio.sleep(10.0)  # Rate limit backoff for free tiers
+            decision = decision_model = ""
             try:
-                decision, decision_model = await self._complete(
+                async for ev in self._complete(
                     roles.PORTFOLIO_MANAGER, decision_context, "portfolio_manager",
-                )
+                ):
+                    if ev["type"] == "result":
+                        decision, decision_model = ev["content"], ev["model"]
+                    else:
+                        yield ev
             except Exception as exc:
                 yield events.error(str(exc))
                 decision = ""

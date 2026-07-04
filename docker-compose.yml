@@ -26,6 +26,7 @@ services:
       LM_STUDIO_MODEL: "${LM_STUDIO_MODEL:-google/gemma-4-26b-a4b}"
       LM_STUDIO_ENABLED: "${LM_STUDIO_ENABLED:-true}"
       OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
       OPENROUTER_BASE_URL: "${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}"
       AGENT_PROVIDER: "${AGENT_PROVIDER:-openrouter}"
       AGENT_MODEL: "${AGENT_MODEL:-openai/gpt-oss-20b:free}"

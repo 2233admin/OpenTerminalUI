@@ -12,7 +12,7 @@ class ScriptedProvider:
         self.model_chains = []
         self.message_batches = []
 
-    async def complete(self, messages, tools=None, *, temperature=0.1, max_tokens=1024, models=None):
+    async def complete(self, messages, tools=None, *, temperature=0.1, max_tokens=1024, models=None, on_status=None):
         self.message_batches.append(messages)
         self.model_chains.append(models)
         msg = self._scripted[self.calls]

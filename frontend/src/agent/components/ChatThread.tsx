@@ -143,6 +143,23 @@ function DecisionBanner({ decision }: { decision: Decision }) {
   );
 }
 
+// --- live pending indicator ----------------------------------------------
+// Shows the model layer's current activity (which model is being contacted,
+// rate-limit backoffs) so long retry windows don't look frozen.
+function PendingIndicator({ status }: { status?: string }) {
+  return (
+    <div className="flex items-center gap-2 py-0.5" aria-live="polite">
+      <span className="relative flex h-2 w-2">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-terminal-accent opacity-75" />
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-terminal-accent" />
+      </span>
+      <span className="font-mono text-[11px] text-terminal-muted">
+        {status ?? "Thinking…"}
+      </span>
+    </div>
+  );
+}
+
 // --- assistant body ------------------------------------------------------
 function AssistantBody({ content }: { content: string }) {
   const decision = parseDecision(content);
@@ -182,9 +199,7 @@ export function ChatThread({ messages }: { messages: AgentMessage[] }) {
             </div>
           )}
           {m.pending && !m.content ? (
-            <div style={{ fontFamily: "var(--ot-font-ui)", fontSize: 13 }}>
-              <span style={{ color: "var(--ot-color-text-muted)" }}>Thinking…</span>
-            </div>
+            <PendingIndicator status={m.status} />
           ) : m.role === "assistant" ? (
             m.content ? <AssistantBody content={m.content} /> : null
           ) : (

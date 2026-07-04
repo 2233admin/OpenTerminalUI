@@ -4,6 +4,7 @@ export type AgentEvent =
   | { type: "tool_result"; id: string; name: string; result: unknown; is_error: boolean }
   | { type: "artifact"; kind: string; name: string; data: unknown }
   | { type: "model"; name: string; phase: string }
+  | { type: "status"; text: string }
   | { type: "phase"; key: string; label: string }
   | { type: "role_message"; role: string; content: string }
   | { type: "final"; content: string }
@@ -43,6 +44,9 @@ export interface AgentMessage {
   roles: AgentRoleNote[];
   pending: boolean;
   model?: string;
+  /** Transient live progress note for the active turn (e.g. "Contacting llama…",
+   * "rate-limited; retrying in 15s…"). Not part of the persisted answer. */
+  status?: string;
 }
 
 export interface AgentArtifact {

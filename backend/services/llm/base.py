@@ -75,4 +75,7 @@ class LLMProvider(Protocol):
         temperature: float = 0.1,
         max_tokens: int = 1024,
         models: list[str] | None = None,
+        # Optional async callback for transient progress (model attempts,
+        # rate-limit backoffs) surfaced to the agent event stream.
+        on_status: Any | None = None,
     ) -> AssistantMessage: ...

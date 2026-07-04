@@ -3,9 +3,13 @@ from __future__ import annotations
 import asyncio
 import json
 import re
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 import httpx
+
+# Async callback used to surface transient progress (model attempts, rate-limit
+# backoffs) to the agent event stream while a single completion is in flight.
+StatusCallback = Callable[[str], Awaitable[None]]
 
 # Harmony/control tokens that reasoning models (e.g. gpt-oss) sometimes leak into
 # message content, e.g. "<|channel|>commentary". Strip them so they never reach
@@ -14,6 +18,13 @@ _HARMONY_TOKEN_RE = re.compile(r"<\|[^|>]*\|>")
 # A leading channel marker like "commentary"/"analysis"/"final" left behind after
 # the control tokens are removed.
 _CHANNEL_LEAD_RE = re.compile(r"^\s*(?:commentary|analysis|final)\b[:.]?\s*", re.IGNORECASE)
+
+
+def _short_model(model: str) -> str:
+    """Human-friendly model label for status notes: drop the provider prefix and
+    the ':free' suffix, e.g. 'meta-llama/llama-3.3-70b-instruct:free' -> 'llama-3.3-70b-instruct'."""
+    name = model.split("/")[-1]
+    return name.removesuffix(":free")
 
 
 def _clean_content(content: str | None) -> str | None:
@@ -64,6 +75,7 @@ class OpenAICompatibleProvider:
         temperature: float = 0.1,
         max_tokens: int = 1024,
         models: list[str] | None = None,
+        on_status: StatusCallback | None = None,
     ) -> AssistantMessage:
         payload: dict[str, Any] = {
             "messages": [m.to_wire() for m in messages],
@@ -80,9 +92,22 @@ class OpenAICompatibleProvider:
         # 429 = rate-limited, 404 = unavailable). Each model gets a short
         # retry/backoff for transient 429/5xx before moving to the next.
         candidates = models if models is not None else [self.model] + [m for m in self.fallback_models if m != self.model]
+
+        async def notify(text: str) -> None:
+            if on_status is not None:
+                try:
+                    await on_status(text)
+                except Exception:  # status reporting must never break a completion
+                    pass
+
         last_exc: Exception | None = None
-        for model in candidates:
+        total = len(candidates)
+        for ci, model in enumerate(candidates):
             payload["model"] = model
+            short = _short_model(model)
+            await notify(
+                f"Contacting {short}…" if ci == 0 else f"Falling back to {short}…"
+            )
             for attempt in range(3):
                 try:
                     async with httpx.AsyncClient(
@@ -97,12 +122,19 @@ class OpenAICompatibleProvider:
                     if status == 401:
                         raise last_exc from exc  # bad key — no point trying other models
                     if status in (429, 500, 502, 503, 504) and attempt < 2:
-                        await asyncio.sleep(1.5 * (attempt + 1))
+                        # Gemini free tier has strict RPM limits; wait longer on 429
+                        wait_time = 15.0 if status == 429 else 1.5 * (attempt + 1)
+                        reason = "rate-limited" if status == 429 else f"error {status}"
+                        await notify(f"{short} {reason}; retrying in {int(wait_time)}s…")
+                        await asyncio.sleep(wait_time)
                         continue
+                    if ci < total - 1:
+                        await notify(f"{short} unavailable (HTTP {status}); trying next model…")
                     break  # 404/other -> move on to the next candidate model
                 except (httpx.HTTPError, ValueError) as exc:
                     last_exc = LLMError(f"LLM request failed: {exc}")
                     if attempt < 2:
+                        await notify(f"{short} connection issue; retrying…")
                         await asyncio.sleep(1.0 * (attempt + 1))
                         continue
                     break

@@ -7,6 +7,13 @@ def token(text: str) -> dict[str, Any]:
     return {"type": "token", "text": text}
 
 
+def status(text: str) -> dict[str, Any]:
+    """Transient progress note for the active turn (e.g. which model is being
+    contacted, rate-limit backoffs). Shown in the pending indicator, not stored
+    as part of the final answer."""
+    return {"type": "status", "text": text}
+
+
 def model(name: str, phase: str) -> dict[str, Any]:
     return {"type": "model", "name": name, "phase": phase}
 

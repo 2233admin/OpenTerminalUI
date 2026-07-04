@@ -70,7 +70,12 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         case "model":
           msg.model = event.name;
           break;
+        case "status":
+          msg.status = event.text;
+          break;
         case "tool_call":
+          // A concrete step supersedes the transient model-layer status line.
+          msg.status = undefined;
           msg.steps.push({ id: event.id, name: event.name, isError: false });
           break;
         case "tool_result": {
@@ -90,10 +95,12 @@ export const useAgentStore = create<AgentState>((set, get) => ({
           break;
         case "final":
           msg.content = event.content;
+          msg.status = undefined;
           msg.pending = false;
           break;
         case "error":
           msg.content = msg.content || `The agent hit an error: ${event.message}`;
+          msg.status = undefined;
           msg.pending = false;
           break;
       }

@@ -5,6 +5,7 @@ import logging
 from typing import Any, AsyncGenerator
 
 from backend.agent import events
+from backend.agent.streaming import complete_with_status
 from backend.agent.playbook import GENERALIST_SYSTEM_PROMPT
 from backend.agent.tools.registry import ToolRegistry
 from backend.config.settings import get_settings
@@ -112,7 +113,15 @@ class Orchestrator:
         yield events.model(tool_models[0], "tool_use")
         for _step in range(self.max_steps):
             try:
-                assistant = await self.provider.complete(messages, tools=tool_defs, models=tool_models)
+                assistant: AssistantMessage | None = None
+                async for ev in complete_with_status(
+                    self.provider, messages, tools=tool_defs, models=tool_models,
+                ):
+                    if ev["type"] == "result":
+                        assistant = ev["message"]
+                    else:
+                        yield ev
+                assert assistant is not None
             except LLMError as exc:
                 yield events.error(str(exc))
                 yield events.final("The model request failed; please try again.")
@@ -134,7 +143,15 @@ class Orchestrator:
                 )
                 yield events.model(synthesis_models[0], "synthesis")
                 try:
-                    synthesis = await self.provider.complete(messages, models=synthesis_models)
+                    synthesis: AssistantMessage | None = None
+                    async for ev in complete_with_status(
+                        self.provider, messages, models=synthesis_models,
+                    ):
+                        if ev["type"] == "result":
+                            synthesis = ev["message"]
+                        else:
+                            yield ev
+                    assert synthesis is not None
                     if synthesis.model and synthesis.model != synthesis_models[0]:
                         yield events.model(synthesis.model, "synthesis")
                     yield events.final(synthesis.content or original_answer)

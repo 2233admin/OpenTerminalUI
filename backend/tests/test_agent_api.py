@@ -12,7 +12,7 @@ def _build_client(monkeypatch) -> TestClient:
     class ScriptedProvider:
         def __init__(self):
             self.calls = 0
-        async def complete(self, messages, tools=None, *, temperature=0.1, max_tokens=1024, models=None):
+        async def complete(self, messages, tools=None, *, temperature=0.1, max_tokens=1024, models=None, on_status=None):
             self.calls += 1
             if self.calls == 1:
                 return AssistantMessage(content=None, tool_calls=[
