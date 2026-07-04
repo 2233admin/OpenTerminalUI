@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { TerminalTable, type TerminalTableColumn } from "../terminal/TerminalTable";
-import { api } from "../../api/base";
+import { getAccessToken } from "../../api/base";
 import { formatCurrency } from "../../lib/format";
 
 interface FlowPoint {
@@ -29,8 +29,12 @@ export function FlowTracker({ ticker }: Props) {
       setLoading(true);
       setError(null);
       try {
-        const { data } = await api.get("/etf/flows", { params: { ticker } });
-        setData(data);
+        const token = getAccessToken();
+        const response = await fetch(`/api/etf/flows?ticker=${encodeURIComponent(ticker)}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!response.ok) throw new Error(`Failed to load flows (${response.status})`);
+        setData(await response.json());
       } catch (err) {
         setError(err instanceof Error ? err.message : "An error occurred");
       } finally {

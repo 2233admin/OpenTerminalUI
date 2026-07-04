@@ -106,7 +106,7 @@ function wrap(ui: React.ReactElement, route = "/") {
 describe("Portfolio Lab pages", () => {
   it("renders list page", async () => {
     wrap(<PortfolioLabPage />);
-    expect(await screen.findByText("Mode: Portfolio Lab")).toBeTruthy();
+    expect(await screen.findByText("Research and stress-test portfolio strategies.")).toBeTruthy();
     expect(await screen.findByText("Core")).toBeTruthy();
   });
 
