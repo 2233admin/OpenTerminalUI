@@ -529,7 +529,8 @@ async def get_chart(
 
     if not market:
         market = "NSE"
-    key = cache_instance.build_key("chart", ticker.upper(), {"i": interval, "r": range})
+    currency = "INR" if (market or "").upper() in {"NSE", "BSE"} else "USD"
+    key = cache_instance.build_key("chart", ticker.upper(), {"i": interval, "r": range, "m": (market or "").upper()})
     cached = await cache_instance.get(key)
     if cached:
         payload = cached
@@ -593,7 +594,7 @@ async def get_chart(
         payload = {
             "ticker": ticker.upper(),
             "interval": interval,
-            "currency": "INR",
+            "currency": currency,
             "data": [d.model_dump() for d in data],
             "meta": {"warnings": warnings},
         }
@@ -615,7 +616,7 @@ async def get_chart(
     return ChartResponse(
         ticker=str(payload.get("ticker") or ticker.upper()),
         interval=str(payload.get("interval") or interval),
-        currency=str(payload.get("currency") or "INR"),
+        currency=str(payload.get("currency") or currency),
         data=filtered_points,
         meta={
             "warnings": (payload.get("meta") or {}).get("warnings", []),

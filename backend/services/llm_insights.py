@@ -1,18 +1,21 @@
-"""Shared LLM insight helper backed by the locally hosted Gemma model.
+"""Shared LLM insight helper backed by OpenRouter with local fallback.
 
 Several read-heavy screens (stock briefing, backtest explainer, risk insights)
 need the same thing: hand the model some structured data, get back a concise,
 sectioned analysis. This module centralises that so every feature uses one
-LM Studio client, one schema, and one graceful-fallback path.
+schema and one graceful-fallback path.
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import datetime, timezone
 from typing import Any
 
 from backend.config.settings import get_settings
+from backend.services.llm.base import LLMMessage
+from backend.services.llm.factory import get_llm_provider
 from backend.services.lm_studio_client import (
     LMStudioError,
     get_lm_studio_client,
@@ -86,8 +89,8 @@ async def run_insight(
 ) -> dict[str, Any]:
     """Produce a `{summary, sections}` insight, falling back gracefully.
 
-    Returns ``engine: "lmstudio"`` when the model answered, ``"unavailable"``
-    when LM Studio is off/unreachable or the response could not be used.
+    Returns ``engine: "openrouter"`` or ``"lmstudio"`` when a model answered,
+    ``"unavailable"`` when no configured provider returned usable content.
     """
     settings = get_settings()
     model = settings.lm_studio_model
@@ -99,6 +102,37 @@ async def run_insight(
         "sections": [],
         "generated_at": generated_at,
     }
+
+    if getattr(settings, "openrouter_api_key", None):
+        openrouter_system_prompt = (
+            f"{system_prompt}\n\n"
+            "Respond with ONLY a JSON object matching this JSON schema. "
+            "Do not include Markdown fences, prose, or fields not listed in the schema:\n"
+            f"{json.dumps(INSIGHT_SCHEMA, separators=(',', ':'))}"
+        )
+        try:
+            provider = get_llm_provider(provider="openrouter")
+            result = await provider.complete(
+                [
+                    LLMMessage(role="system", content=openrouter_system_prompt),
+                    LLMMessage(role="user", content=user_content),
+                ],
+                temperature=0.3,
+                max_tokens=max_tokens,
+            )
+            parsed = parse_json_response(result.content or "")
+            summary = str(parsed.get("summary") or "").strip()
+            sections = _sanitize_sections(parsed.get("sections"))
+            if summary or sections:
+                return {
+                    "engine": "openrouter",
+                    "model": result.model or provider.model,
+                    "summary": summary,
+                    "sections": sections,
+                    "generated_at": generated_at,
+                }
+        except Exception:
+            pass
 
     client = get_lm_studio_client()
     if not settings.lm_studio_enabled or not await client.health():

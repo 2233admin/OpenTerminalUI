@@ -251,18 +251,18 @@ export function ChartEngine({
     const candles = chart.addSeries(
       CandlestickSeries,
       {
-        upColor: terminalColors.candleUp,
-        downColor: terminalColors.candleDown,
-        borderVisible: true,
-        wickUpColor: terminalColors.candleUp,
-        wickDownColor: terminalColors.candleDown,
+        upColor: isFootprintMode ? "transparent" : terminalColors.candleUp,
+        downColor: isFootprintMode ? "transparent" : terminalColors.candleDown,
+        borderVisible: !isFootprintMode,
+        wickUpColor: isFootprintMode ? "transparent" : terminalColors.candleUp,
+        wickDownColor: isFootprintMode ? "transparent" : terminalColors.candleDown,
         visible:
-          !isFootprintMode &&
-          (chartTypeId === "candle" ||
-            chartTypeId === "renko" ||
-            chartTypeId === "kagi" ||
-            chartTypeId === "point_figure" ||
-            chartTypeId === "line_break"),
+          isFootprintMode ||
+          chartTypeId === "candle" ||
+          chartTypeId === "renko" ||
+          chartTypeId === "kagi" ||
+          chartTypeId === "point_figure" ||
+          chartTypeId === "line_break",
       },
       0,
     );
@@ -448,12 +448,17 @@ export function ChartEngine({
     if (!s.candles || !s.line || !s.area || !s.baseline) return;
     s.candles.applyOptions({
       visible:
-        !isFootprintMode &&
-        (chartTypeId === "candle" ||
-          chartTypeId === "renko" ||
-          chartTypeId === "kagi" ||
-          chartTypeId === "point_figure" ||
-          chartTypeId === "line_break"),
+        isFootprintMode ||
+        chartTypeId === "candle" ||
+        chartTypeId === "renko" ||
+        chartTypeId === "kagi" ||
+        chartTypeId === "point_figure" ||
+        chartTypeId === "line_break",
+      upColor: isFootprintMode ? "transparent" : terminalColors.candleUp,
+      downColor: isFootprintMode ? "transparent" : terminalColors.candleDown,
+      borderVisible: !isFootprintMode,
+      wickUpColor: isFootprintMode ? "transparent" : terminalColors.candleUp,
+      wickDownColor: isFootprintMode ? "transparent" : terminalColors.candleDown,
     });
     s.line.applyOptions({ visible: chartTypeId === "line" });
     s.area.applyOptions({ visible: chartTypeId === "area" });

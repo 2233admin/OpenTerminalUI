@@ -41,7 +41,7 @@ export async function fetchStockEmotion(
 }
 
 export async function fetchStockBriefing(ticker: string, market?: string): Promise<InsightData> {
-  const { data } = await api.get<InsightData>(`/v1/ai/briefing/${encodeURIComponent(ticker)}`, {
+  const { data } = await api.get<InsightData>(`/ai/briefing/${encodeURIComponent(ticker)}`, {
     params: { market },
   });
   return data;

@@ -203,6 +203,8 @@ _frontend_app_entry_paths = {
 
 @app.get("/{full_path:path}", include_in_schema=False)
 def spa_entry(full_path: str) -> FileResponse:
+    if full_path.split("/", 1)[0] == "api":
+        raise HTTPException(status_code=404, detail="Not found")
     if not _frontend_dist.exists():
         raise HTTPException(status_code=404, detail="Frontend bundle not found")
     requested = _frontend_dist / full_path

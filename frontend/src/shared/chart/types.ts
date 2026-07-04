@@ -2,7 +2,7 @@ import type { Bar, IndicatorResult } from "oakscriptjs";
 import type { ISeriesApi, Time } from "lightweight-charts";
 import type { ExtendedHoursConfig } from "../../store/chartWorkstationStore";
 
-export type ChartKind = "candle" | "line" | "area" | "baseline" | "renko" | "kagi" | "point_figure" | "line_break";
+export type ChartKind = "candle" | "line" | "area" | "baseline" | "renko" | "kagi" | "point_figure" | "line_break" | "footprint";
 
 export type ChartTimeframe = "1m" | "2m" | "5m" | "15m" | "30m" | "1h" | "4h" | "1D" | "1W" | "1M";
 

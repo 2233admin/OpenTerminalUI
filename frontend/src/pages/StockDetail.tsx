@@ -493,7 +493,7 @@ export function StockDetailPage() {
             </div>
             <div className={`mt-1 text-sm font-semibold tabular-nums ${moveClass}`}>{changeText}</div>
             <div className={`mt-1 text-sm font-semibold tabular-nums ${moveClass}`}>{changePctText}</div>
-            <div className="mt-2 flex items-center gap-2">
+            <div className="mt-2 flex flex-wrap items-center gap-2">
               <span
                 className={`rounded border px-2 py-0.5 text-[11px] ${
                   effectiveChartLiveStatus === "live"
@@ -646,7 +646,7 @@ export function StockDetailPage() {
       </div>
       <Link
         to="/equity/stocks/about"
-        className="fixed bottom-12 left-2 z-20 rounded-sm border border-terminal-border bg-terminal-panel px-2 py-1 text-[11px] uppercase tracking-wide text-terminal-muted hover:text-terminal-accent md:left-52"
+        className="mt-6 inline-flex w-fit rounded-sm border border-terminal-border bg-terminal-panel px-2 py-1 text-[11px] uppercase tracking-wide text-terminal-muted hover:text-terminal-accent"
       >
         About
       </Link>

@@ -191,9 +191,11 @@ export function TickerTape() {
               >
                 <span className="text-[#FF6B00]">{item.label}</span>
                 <span>{formatPrice(item.price)}</span>
-                <span className={item.change != null && item.change >= 0 ? "text-terminal-pos" : item.change != null ? "text-terminal-neg" : "text-terminal-muted"}>
-                  {formatChange(item.change)}
-                </span>
+                {item.change != null && (
+                  <span className={item.change != null && item.change >= 0 ? "text-terminal-pos" : item.change != null ? "text-terminal-neg" : "text-terminal-muted"}>
+                    {formatChange(item.change)}
+                  </span>
+                )}
                 <span className={pctClass}>{formatPct(item.changePct)}</span>
               </button>
             );
@@ -210,9 +212,11 @@ export function TickerTape() {
               >
                 <span className="text-[#FF6B00]">{item.label}</span>
                 <span>{formatPrice(item.price)}</span>
-                <span className={item.change != null && item.change >= 0 ? "text-terminal-pos" : item.change != null ? "text-terminal-neg" : "text-terminal-muted"}>
-                  {formatChange(item.change)}
-                </span>
+                {item.change != null && (
+                  <span className={item.change != null && item.change >= 0 ? "text-terminal-pos" : item.change != null ? "text-terminal-neg" : "text-terminal-muted"}>
+                    {formatChange(item.change)}
+                  </span>
+                )}
                 <span className={pctClass}>{formatPct(item.changePct)}</span>
               </div>
             );

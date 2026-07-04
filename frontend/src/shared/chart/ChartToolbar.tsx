@@ -189,6 +189,7 @@ export function SharedChartToolbar({
               <option value="kagi">Kagi</option>
               <option value="point_figure">Point &amp; Figure</option>
               <option value="line_break">Line Break</option>
+              <option value="footprint">Footprint · Orderflow</option>
             </select>
           </div>
 

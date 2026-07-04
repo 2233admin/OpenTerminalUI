@@ -31,6 +31,7 @@ export function FuturesPanel() {
   const [chainContracts, setChainContracts] = useState<FuturesChainContract[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [orderflow, setOrderflow] = useState(false);
 
   const { data: chart } = useStockHistory(selectedUnderlying, "3mo", "1d");
   // Must be memoized: inline chartPointsToBars() creates a new array reference every
@@ -167,14 +168,23 @@ export function FuturesPanel() {
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           {selectedUnderlying && historicalData.length > 0 && (
-            <div className="h-72 w-full max-h-72 rounded border border-terminal-border">
+            <div className="relative h-72 w-full max-h-72 rounded border border-terminal-border">
+              <button
+                type="button"
+                className={`absolute right-2 top-2 z-10 rounded border px-2 py-0.5 text-[11px] ${
+                  orderflow ? "border-terminal-accent text-terminal-accent" : "border-terminal-border text-terminal-muted"
+                }`}
+                onClick={() => setOrderflow((value) => !value)}
+              >
+                ORDERFLOW
+              </button>
               <ChartEngine
                 symbol={selectedUnderlying}
                 timeframe="1D"
                 historicalData={historicalData}
                 market="NSE"
                 activeIndicators={[]}
-                chartType="candle"
+                chartType={orderflow ? "footprint" : "candle"}
                 showVolume={true}
                 enableRealtime={true}
                 height={285}

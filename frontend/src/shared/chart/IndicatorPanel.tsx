@@ -316,7 +316,7 @@ export function IndicatorPanel({ symbol, activeIndicators, onChange, templateSco
   };
 
   return (
-    <div className="relative rounded border border-terminal-border bg-terminal-panel p-3">
+    <div className="relative max-h-[calc(100vh-260px)] overflow-y-auto rounded border border-terminal-border bg-terminal-panel p-3">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <div className="text-xs font-semibold uppercase tracking-wide text-terminal-accent">Indicators</div>
