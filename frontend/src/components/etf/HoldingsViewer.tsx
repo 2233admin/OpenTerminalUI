@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { TerminalTable, type TerminalTableColumn } from "../terminal/TerminalTable";
+import { api } from "../../api/base";
 import { formatCurrency, formatPercent } from "../../lib/format";
 
 interface Holding {
@@ -24,9 +25,7 @@ export function HoldingsViewer({ ticker }: Props) {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(`/api/etf/holdings?ticker=${ticker}`);
-        if (!response.ok) throw new Error("Failed to fetch holdings");
-        const data = await response.json();
+        const { data } = await api.get("/etf/holdings", { params: { ticker } });
         setHoldings(data.holdings);
       } catch (err) {
         setError(err instanceof Error ? err.message : "An error occurred");

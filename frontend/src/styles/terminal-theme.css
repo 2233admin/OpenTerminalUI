@@ -1137,10 +1137,16 @@ button.ot-home-widget-strip-chip:hover {
   font-weight: var(--ot-font-weight-medium);
   letter-spacing: var(--ot-letter-spacing-wide);
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .ot-home-widget-strip-value {
   color: var(--ot-color-text-primary);
+  white-space: nowrap;
+}
+
+.ot-home-widget-strip-change {
+  white-space: nowrap;
 }
 
 .ot-home-widget-strip-change[data-tone="up"] {

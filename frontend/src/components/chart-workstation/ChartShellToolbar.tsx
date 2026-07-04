@@ -651,7 +651,7 @@ export function ChartShellToolbar({
             </div>
           </section>
         </div>
-        <div className="hidden gap-2 md:grid xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.05fr)_minmax(0,1.1fr)]">
+        <div className="hidden gap-2 md:grid xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.05fr)_minmax(0,1.1fr)] [&>section]:min-w-0 [&_.grid]:min-w-0">
           <section className="rounded border border-terminal-border bg-terminal-bg/50 p-2 text-[11px]">
             <div className="flex items-center justify-between gap-2">
               <div className="ot-type-label text-terminal-muted">Focus</div>
@@ -895,18 +895,18 @@ export function ChartShellToolbar({
               <span className="text-[10px] text-terminal-muted">{gridTemplate.cols}x{gridTemplate.rows} layout</span>
             </div>
             <div className="mt-2 grid gap-2">
-              <div className="grid gap-2 md:grid-cols-[auto_auto_minmax(0,1fr)]">
+              <div className="flex flex-wrap items-center gap-2">
                 <TerminalButton type="button" size="sm" variant="ghost" className="px-2" onClick={onSaveWorkspaceDefault}>
                   Save Default
                 </TerminalButton>
                 <TerminalButton type="button" size="sm" variant="ghost" className="px-2" disabled={!hasSavedDefault} onClick={onRestoreWorkspaceDefault}>
                   Load Default
                 </TerminalButton>
-                <div className="text-[10px] leading-4 text-terminal-muted">
+                <div className="w-full text-[10px] leading-4 text-terminal-muted">
                   Defaults persist the active tab’s layout, link matrix, compare scope, and range choices for future workstation launches.
                 </div>
               </div>
-              <div className="grid gap-2 md:grid-cols-[auto_auto_auto_minmax(0,1fr)]">
+              <div className="flex flex-wrap items-center gap-2">
                 <TerminalButton type="button" size="sm" variant="ghost" className="px-2" onClick={onSaveWorkspaceSnapshot}>
                   Save Snapshot
                 </TerminalButton>
@@ -916,7 +916,7 @@ export function ChartShellToolbar({
                 <TerminalButton type="button" size="sm" variant="ghost" className="px-2" onClick={onExportWorkspaceJson}>
                   Export JSON
                 </TerminalButton>
-                <div className="text-[10px] leading-4 text-terminal-muted" data-testid="chart-shell-persistence-note">
+                <div className="w-full text-[10px] leading-4 text-terminal-muted" data-testid="chart-shell-persistence-note">
                   {persistenceBoundaryNote}
                 </div>
               </div>

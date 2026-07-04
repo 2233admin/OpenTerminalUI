@@ -4,6 +4,7 @@ Fetches quarterly shareholding data from NSE India website.
 """
 from __future__ import annotations
 
+import logging
 import os
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -12,6 +13,8 @@ import httpx
 from pydantic import BaseModel, Field
 
 from backend.shared.cache import cache
+
+logger = logging.getLogger(__name__)
 
 
 class ShareholdingCategory(BaseModel):

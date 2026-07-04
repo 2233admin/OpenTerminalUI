@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { TerminalTable, type TerminalTableColumn } from "../terminal/TerminalTable";
+import { api } from "../../api/base";
 import { formatPercent } from "../../lib/format";
 
 interface CommonHolding {
@@ -30,10 +31,8 @@ export function OverlapAnalysis({ tickers }: Props) {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(`/api/etf/overlap?tickers=${tickers.join(",")}`);
-        if (!response.ok) throw new Error("Failed to fetch overlap analysis");
-        const json = await response.json();
-        setData(json);
+        const { data } = await api.get("/etf/overlap", { params: { tickers: tickers.join(",") } });
+        setData(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "An error occurred");
       } finally {
