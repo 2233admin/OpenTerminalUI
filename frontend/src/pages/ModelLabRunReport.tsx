@@ -21,6 +21,7 @@ import {
 
 import { getModelRunReport } from "../api/client";
 import { api } from "../api/base";
+import { RobustnessPanel } from "../components/modellab/RobustnessPanel";
 import { TerminalPanel } from "../components/terminal/TerminalPanel";
 
 type ReportTab = "summary" | "robustness";
@@ -368,53 +369,56 @@ export function ModelLabRunReportPage() {
           )}
 
           {tab === "robustness" && (
-            <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.2fr_0.8fr]">
-              <TerminalPanel
-                title="Monte Carlo Robustness"
-                subtitle={mcJobId ? `Job ${mcJobId}` : "1000 simulations / 252 sessions"}
-                actions={
-                  <button type="button" className="rounded border border-terminal-accent bg-terminal-accent/10 px-2 py-1 text-xs text-terminal-accent disabled:opacity-50" onClick={() => startMonteCarlo.mutate()} disabled={startMonteCarlo.isPending || !runId}>
-                    {startMonteCarlo.isPending ? "Starting..." : "Run MC"}
-                  </button>
-                }
-              >
-                <div className="mb-2 grid grid-cols-3 gap-2 text-xs">
-                  <div className="rounded border border-terminal-border bg-terminal-bg p-2">Status<br /><span className="text-terminal-accent">{monteCarloQuery.data?.status || (mcJobId ? "polling" : "idle")}</span></div>
-                  <div className="rounded border border-terminal-border bg-terminal-bg p-2">Progress<br /><span className="text-terminal-accent">{Number(monteCarloQuery.data?.progress || 0).toFixed(0)}%</span></div>
-                  <div className="rounded border border-terminal-border bg-terminal-bg p-2">Profit Prob<br /><span className="text-terminal-accent">{pct(mcProfitPct)}</span></div>
-                </div>
-                <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={mcConeRows}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" hide={!mcConeRows.some((row) => row.date)} />
-                      <YAxis />
-                      <Tooltip />
-                      <Legend />
-                      <Area dataKey="p95" name="P95" stroke="#38bdf8" fill="#38bdf8" fillOpacity={0.08} dot={false} />
-                      <Area dataKey="p75" name="P75" stroke="#60a5fa" fill="#60a5fa" fillOpacity={0.16} dot={false} />
-                      <Area dataKey="p50" name="Median" stroke="#34d399" fill="#34d399" fillOpacity={0.08} dot={false} />
-                      <Area dataKey="p25" name="P25" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.12} dot={false} />
-                      <Area dataKey="p05" name="P05" stroke="#f87171" fill="#f87171" fillOpacity={0.08} dot={false} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </TerminalPanel>
+            <div className="space-y-3">
+              <RobustnessPanel runId={runId} />
+              <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.2fr_0.8fr]">
+                <TerminalPanel
+                  title="Monte Carlo Robustness"
+                  subtitle={mcJobId ? `Job ${mcJobId}` : "1000 simulations / 252 sessions"}
+                  actions={
+                    <button type="button" className="rounded border border-terminal-accent bg-terminal-accent/10 px-2 py-1 text-xs text-terminal-accent disabled:opacity-50" onClick={() => startMonteCarlo.mutate()} disabled={startMonteCarlo.isPending || !runId}>
+                      {startMonteCarlo.isPending ? "Starting..." : "Run MC"}
+                    </button>
+                  }
+                >
+                  <div className="mb-2 grid grid-cols-3 gap-2 text-xs">
+                    <div className="rounded border border-terminal-border bg-terminal-bg p-2">Status<br /><span className="text-terminal-accent">{monteCarloQuery.data?.status || (mcJobId ? "polling" : "idle")}</span></div>
+                    <div className="rounded border border-terminal-border bg-terminal-bg p-2">Progress<br /><span className="text-terminal-accent">{Number(monteCarloQuery.data?.progress || 0).toFixed(0)}%</span></div>
+                    <div className="rounded border border-terminal-border bg-terminal-bg p-2">Profit Prob<br /><span className="text-terminal-accent">{pct(mcProfitPct)}</span></div>
+                  </div>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={mcConeRows}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="date" hide={!mcConeRows.some((row) => row.date)} />
+                        <YAxis />
+                        <Tooltip />
+                        <Legend />
+                        <Area dataKey="p95" name="P95" stroke="#38bdf8" fill="#38bdf8" fillOpacity={0.08} dot={false} />
+                        <Area dataKey="p75" name="P75" stroke="#60a5fa" fill="#60a5fa" fillOpacity={0.16} dot={false} />
+                        <Area dataKey="p50" name="Median" stroke="#34d399" fill="#34d399" fillOpacity={0.08} dot={false} />
+                        <Area dataKey="p25" name="P25" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.12} dot={false} />
+                        <Area dataKey="p05" name="P05" stroke="#f87171" fill="#f87171" fillOpacity={0.08} dot={false} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </TerminalPanel>
 
-              <TerminalPanel title="Terminal Wealth" subtitle="Distribution histogram">
-                <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={mcHistogramRows}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="bucket" hide />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="count" fill="#22c55e" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-                {!mcHistogramRows.length && <div className="text-xs text-terminal-muted">Run Monte Carlo to populate terminal-wealth buckets.</div>}
-              </TerminalPanel>
+                <TerminalPanel title="Terminal Wealth" subtitle="Distribution histogram">
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={mcHistogramRows}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="bucket" hide />
+                        <YAxis />
+                        <Tooltip />
+                        <Bar dataKey="count" fill="#22c55e" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                  {!mcHistogramRows.length && <div className="text-xs text-terminal-muted">Run Monte Carlo to populate terminal-wealth buckets.</div>}
+                </TerminalPanel>
+              </div>
             </div>
           )}
         </>

@@ -86,6 +86,15 @@ export function MissionControlGrid() {
           <button type="button" className="rounded-sm border border-terminal-border px-2 py-2 text-xs text-terminal-text hover:border-terminal-accent" onClick={() => navigate("/equity/factors")}>
             Factors
           </button>
+          <button type="button" className="rounded-sm border border-terminal-border px-2 py-2 text-xs text-terminal-text hover:border-terminal-accent" onClick={() => navigate("/equity/alpha-zoo")}>
+            Alpha Zoo
+          </button>
+          <button type="button" className="rounded-sm border border-terminal-border px-2 py-2 text-xs text-terminal-text hover:border-terminal-accent" onClick={() => navigate("/equity/research-autopilot")}>
+            Research Autopilot
+          </button>
+          <button type="button" className="rounded-sm border border-terminal-border px-2 py-2 text-xs text-terminal-text hover:border-terminal-accent" onClick={() => navigate("/equity/strategy-export")}>
+            Strategy Export
+          </button>
           <button type="button" className="rounded-sm border border-terminal-border px-2 py-2 text-xs text-terminal-text hover:border-terminal-accent" onClick={() => navigate("/equity/intelligence-timeline")}>
             Intelligence
           </button>
@@ -94,6 +103,9 @@ export function MissionControlGrid() {
           </button>
           <button type="button" className="rounded-sm border border-terminal-border px-2 py-2 text-xs text-terminal-text hover:border-terminal-accent" onClick={() => navigate("/equity/portfolio")}>
             Portfolio
+          </button>
+          <button type="button" className="rounded-sm border border-terminal-border px-2 py-2 text-xs text-terminal-text hover:border-terminal-accent" onClick={() => navigate("/equity/shadow-account")}>
+            Shadow Account
           </button>
           <button type="button" className="rounded-sm border border-terminal-border px-2 py-2 text-xs text-terminal-text hover:border-terminal-accent" onClick={() => navigate("/backtesting")}>
             Backtesting

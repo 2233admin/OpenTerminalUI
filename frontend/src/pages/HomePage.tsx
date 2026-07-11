@@ -97,6 +97,8 @@ const NAV_CARD_SECTIONS: Array<{ title: string; cards: NavCard[] }> = [
       { label: "Screener", to: "/equity/screener", badge: "F2" },
       { label: "Saved Views", to: "/equity/saved-views", badge: "SV" },
       { label: "Factors", to: "/equity/factors", badge: "FAC" },
+      { label: "Alpha Zoo", to: "/equity/alpha-zoo", badge: "AZ" },
+      { label: "Strategy Export", to: "/equity/strategy-export", badge: "SE" },
       { label: "Intelligence", to: "/equity/intelligence-timeline", badge: "INT" },
       { label: "Hotlists", to: "/equity/hotlists", badge: "HOT" },
       { label: "Insider", to: "/equity/insider", badge: "INS" },

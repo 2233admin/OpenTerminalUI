@@ -36,6 +36,7 @@ const AlertsPage = lazyWithRetry(() => import("./pages/Alerts").then((m) => ({ d
 const PaperTradingPage = lazyWithRetry(() => import("./pages/PaperTrading").then((m) => ({ default: m.PaperTradingPage })));
 const PositionSizerPage = lazyWithRetry(() => import("./pages/PositionSizerPage").then((m) => ({ default: m.PositionSizerPage })));
 const TradeJournalPage = lazyWithRetry(() => import("./pages/TradeJournalPage").then((m) => ({ default: m.TradeJournalPage })));
+const ShadowAccountPage = lazyWithRetry(() => import("./pages/ShadowAccount").then((m) => ({ default: m.ShadowAccountPage })));
 const RiskDashboardPage = lazyWithRetry(() => import("./pages/RiskDashboard").then((m) => ({ default: m.RiskDashboardPage })));
 const CorrelationDashboardPage = lazyWithRetry(() => import("./pages/CorrelationDashboardPage").then((m) => ({ default: m.CorrelationDashboardPage })));
 const OmsCompliancePage = lazyWithRetry(() => import("./pages/OmsCompliance").then((m) => ({ default: m.OmsCompliancePage })));
@@ -56,6 +57,9 @@ const SectorRotationPage = lazyWithRetry(() => import("./pages/SectorRotation").
 const CryptoWorkspacePage = lazyWithRetry(() => import("./pages/CryptoWorkspace").then((m) => ({ default: m.CryptoWorkspacePage })));
 const BondsPage = lazyWithRetry(() => import("./pages/equity/bonds/Bonds").then((m) => ({ default: m.BondsPage })));
 const FactorDashboardPage = lazyWithRetry(() => import("./pages/FactorDashboard").then((m) => ({ default: m.FactorDashboardPage })));
+const AlphaZooPage = lazyWithRetry(() => import("./pages/AlphaZoo").then((m) => ({ default: m.AlphaZooPage })));
+const ResearchAutopilotPage = lazyWithRetry(() => import("./pages/ResearchAutopilot").then((m) => ({ default: m.ResearchAutopilotPage })));
+const StrategyExportPage = lazyWithRetry(() => import("./pages/StrategyExport").then((m) => ({ default: m.StrategyExportPage })));
 const IntelligenceTimelinePage = lazyWithRetry(() => import("./pages/IntelligenceTimelinePage").then((m) => ({ default: m.IntelligenceTimelinePage })));
 const ETFAnalyticsPage = lazyWithRetry(() => import("./pages/ETFAnalytics").then((m) => ({ default: m.ETFAnalyticsPage })));
 const MutualFundsPage = lazyWithRetry(() => import("./pages/MutualFunds").then((m) => ({ default: m.MutualFundsPage })));
@@ -141,6 +145,9 @@ function App() {
             <Route path="data-quality" element={<DataQualityDashboard />} />
             <Route path="screener" element={<ScreenerPage />} />
             <Route path="factors" element={<FactorDashboardPage />} />
+            <Route path="alpha-zoo" element={<AlphaZooPage />} />
+            <Route path="research-autopilot" element={<ResearchAutopilotPage />} />
+            <Route path="strategy-export" element={<StrategyExportPage />} />
             <Route path="intelligence-timeline" element={<IntelligenceTimelinePage />} />
             <Route path="portfolio" element={<PortfolioPage />} />
             <Route path="portfolio/lab" element={<PortfolioLabPage />} />
@@ -155,6 +162,7 @@ function App() {
             <Route path="paper" element={<PaperTradingPage />} />
             <Route path="position-sizer" element={<PositionSizerPage />} />
             <Route path="journal" element={<TradeJournalPage />} />
+            <Route path="shadow-account" element={<ShadowAccountPage />} />
             <Route path="risk" element={<RiskDashboardPage />} />
             <Route path="correlation" element={<CorrelationDashboardPage />} />
             <Route path="stat-lab" element={<StatisticalLab />} />

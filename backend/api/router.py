@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from backend.api.routes.agent import router as agent_router
 from backend.api.routes.ai import router as ai_router
+from backend.api.routes.alpha_zoo import router as alpha_zoo_router
 from backend.api.routes.analytics import router as analytics_router
 from backend.api.routes.bonds import router as bonds_router
 from backend.api.routes.commodities import router as commodities_router
@@ -18,10 +19,14 @@ from backend.api.routes.framework import router as framework_router
 from backend.api.routes.heatmap import router as heatmap_router
 from backend.api.routes.insider import router as insider_router
 from backend.api.routes.journal import router as journal_router
+from backend.api.routes.model_lab_robustness import router as model_lab_robustness_router
 from backend.api.routes.notifications import router as notifications_router
 from backend.api.routes.portfolio_optimizer import router as portfolio_optimizer_router
 from backend.api.routes.research import router as research_router
+from backend.api.routes.research_autopilot import router as research_autopilot_router
+from backend.api.routes.shadow_account import router as shadow_account_router
 from backend.api.routes.statlab import router as statlab_router
+from backend.api.routes.strategy_export import router as strategy_export_router
 from backend.api.routes.stress_test import router as stress_test_router
 from backend.api.routes.tape import router as tape_router
 from backend.api.routes.watchlists import router as watchlists_router
@@ -53,6 +58,9 @@ api_router.include_router(fno_router)
 api_router.include_router(commodities_router, prefix="/api")
 api_router.include_router(forex_router, prefix="/api")
 api_router.include_router(factor_analysis_router, prefix="/api")
+api_router.include_router(model_lab_robustness_router, prefix="/api")
+api_router.include_router(alpha_zoo_router, prefix="/api")
+api_router.include_router(strategy_export_router, prefix="/api")
 api_router.include_router(ai_router, prefix="/api")
 api_router.include_router(agent_router, prefix="/api")
 # These routers already carry their full "/api/..." prefix internally,
@@ -68,6 +76,8 @@ api_router.include_router(research_router)
 api_router.include_router(fno_flow_router)
 api_router.include_router(heatmap_router, prefix="/api/heatmap")
 api_router.include_router(journal_router)
+api_router.include_router(research_autopilot_router)
+api_router.include_router(shadow_account_router)
 api_router.include_router(notifications_router)
 api_router.include_router(stress_test_router, prefix="/api")
 api_router.include_router(insider_router)
